@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Smartys Downloader",
+  "version": "0.1.0",
+  "description": "F\u00e4ngt DLC-Container und JD2-Download-Klicks ab und schickt sie an Smartys Downloader",
+  "permissions": [
+    "downloads",
+    "contextMenus",
+    "storage",
+    "notifications",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "browser_action": {
+    "default_title": "Smartys Downloader",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+downloads/
+*.part
+smartdl.log
+smartdl.db
+smartdl.db-shm
+smartdl.db-walbuild/
+dist/
+releases/*.deb
+
+# Container-/Archiv-Passwörter (privat, werden zur Laufzeit erzeugt)
+archive_passwords.txt

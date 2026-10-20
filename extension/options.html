@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 14px system-ui, sans-serif; padding: 20px; max-width: 420px; }
+    h1 { font-size: 16px; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+    code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Smartys Downloader — Einstellungen</h1>
+  <div class="row">
+    <input type="checkbox" id="opt-dlc">
+    <label for="opt-dlc">DLC-Downloads automatisch abfangen</label>
+  </div>
+  <div class="row">
+    <input type="checkbox" id="opt-cnl">
+    <label for="opt-cnl">Click'n'Load-Buttons (JD2) an Downloader weiterreichen</label>
+  </div>
+  <p>Der Downloader muss laufen, damit die Übergabe funktioniert:
+     <code>smartys-downloader</code> — Panel <code>http://127.0.0.1:8765</code>,
+     CNL2-Brücke <code>http://127.0.0.1:9666</code>.</p>
+  <script>
+    chrome.storage.local.get(["interceptDlc", "interceptCnl"], (s) => {
+      document.getElementById("opt-dlc").checked = s.interceptDlc !== false;
+      document.getElementById("opt-cnl").checked = s.interceptCnl !== false;
+    });
+    ["opt-dlc", "opt-cnl"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", () => {
+        chrome.storage.local.set({
+          interceptDlc: document.getElementById("opt-dlc").checked,
+          interceptCnl: document.getElementById("opt-cnl").checked,
+        });
+      });
+    });
+  </script>
+</body>
+</html>
