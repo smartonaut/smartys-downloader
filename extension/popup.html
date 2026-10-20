@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 14px system-ui, sans-serif; padding: 14px; min-width: 280px; }
+    h1 { font-size: 15px; margin: 0 0 4px; }
+    .sub { color: #888; font-size: 12px; margin-bottom: 12px; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .status { margin-top: 12px; padding: 8px 10px; border-radius: 8px;
+              background: #f0f2f5; font-size: 12px; }
+    .ok { background: #e8f5e9; color: #1b5e20; }
+    .err { background: #ffebee; color: #b71c1c; }
+    button { padding: 6px 12px; border-radius: 8px; border: 1px solid #ccc;
+             background: #fff; cursor: pointer; }
+    button:hover { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <h1>⬇ Smartys Downloader</h1>
+  <div class="sub">Bridge zwischen Webseiten und deinem Downloader</div>
+
+  <div class="row">
+    <input type="checkbox" id="opt-dlc" checked>
+    <label for="opt-dlc">DLC-Downloads abfangen</label>
+  </div>
+  <div class="row">
+    <input type="checkbox" id="opt-cnl" checked>
+    <label for="opt-cnl">Click'n'Load (JD2-Buttons) nutzen</label>
+  </div>
+
+  <div id="status" class="status">Prüfe Downloader…</div>
+
+  <script>
+    // Einstellungen laden/speichern
+    chrome.storage.local.get(["interceptDlc", "interceptCnl"], (s) => {
+      document.getElementById("opt-dlc").checked = s.interceptDlc !== false;
+      document.getElementById("opt-cnl").checked = s.interceptCnl !== false;
+    });
+    ["opt-dlc", "opt-cnl"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", (e) => {
+        chrome.storage.local.set({
+          interceptDlc: document.getElementById("opt-dlc").checked,
+          interceptCnl: document.getElementById("opt-cnl").checked,
+        });
+      });
+    });
+
+    // Downloader erreichbar?
+    fetch("http://127.0.0.1:9666/flashadd")
+      .then(() => {
+        document.getElementById("status").textContent = "✓ Downloader erreichbar (CNL2-Port 9666)";
+        document.getElementById("status").className = "status ok";
+      })
+      .catch(() => {
+        document.getElementById("status").textContent = "✗ Downloader nicht erreichbar — läuft er?";
+        document.getElementById("status").className = "status err";
+      });
+
+    // Panel öffnen
+    const btn = document.createElement("button");
+    btn.textContent = "Panel öffnen";
+    btn.style.marginTop = "10px";
+    btn.onclick = () => chrome.tabs.create({ url: "http://127.0.0.1:8765/" });
+    document.body.appendChild(btn);
+  </script>
+</body>
+</html>

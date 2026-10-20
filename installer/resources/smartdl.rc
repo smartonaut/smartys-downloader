@@ -1,0 +1,33 @@
+// Ressource: Icon + Versionsinfo (rechtsklick → Details auf die exe)
+#include <windows.h>
+
+101 ICON "smartdl.ico"
+
+#if !defined(RC_INVOKED)
+#define VER_STRINGIFY(x) #x
+#endif
+
+1 VERSIONINFO
+FILEVERSION     0,3,1,0
+PRODUCTVERSION  0,3,1,0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040704b0"   // deutsch, unicode
+    BEGIN
+      VALUE "ProductName",      "Smartys Downloader"
+      VALUE "FileDescription",  "Smartys Downloader Setup"
+      VALUE "FileVersion",      "0.3.1.0"
+      VALUE "ProductVersion",   "0.3.1"
+      VALUE "CompanyName",      "smartys.tech"
+      VALUE "LegalCopyright",   "© 2026 Smarty"
+      VALUE "OriginalFilename", "SmartDownloaderSetup.exe"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0407, 1200
+  END
+END

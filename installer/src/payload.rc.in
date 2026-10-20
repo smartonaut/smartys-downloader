@@ -1,0 +1,2 @@
+// eingebettetes ZIP (der downloader selbst) in die setup-exe kompiliert
+101 PAYLOAD "@PAYLOAD@"

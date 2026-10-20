@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smartys Downloader</title>
+<style>
+:root {
+  --bg: #0b0d12; --bg2: #11141c; --card: #161a24; --card2: #1c2130;
+  --border: #262c3d; --text: #e8eaf2; --muted: #7d8399; --muted2: #565d73;
+  --accent: #5b8cff; --accent2: #7c5bff; --green: #34d399; --red: #f87171;
+  --yellow: #fbbf24; --cyan: #22d3ee;
+  --glow: 0 0 20px rgba(91,140,255,.25);
+  --radius: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(124,91,255,.12), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(34,211,238,.08), transparent 50%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+.app-shell { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 240px; background: var(--bg2); border-right: 1px solid var(--border);
+  padding: 20px 14px; display: flex; flex-direction: column; gap: 6px;
+  position: sticky; top: 0; height: 100vh;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; padding: 6px 10px 22px; letter-spacing: -.3px; }
+.logo .mark {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: grid; place-items: center; font-size: 17px; box-shadow: var(--glow);
+}
+.nav-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--muted); cursor: pointer; font-weight: 500; border: 1px solid transparent; transition: all .15s; font-size: 14px; user-select: none; }
+.nav-btn:hover { color: var(--text); background: var(--card); }
+.nav-btn.active { color: var(--text); background: linear-gradient(135deg, rgba(91,140,255,.14), rgba(124,91,255,.10)); border-color: rgba(91,140,255,.35); }
+.nav-btn .ico { font-size: 16px; width: 20px; text-align: center; }
+.nav-spacer { flex: 1; }
+.nav-status { padding: 12px; font-size: 12px; color: var(--muted2); border-top: 1px solid var(--border); }
+.nav-status b { color: var(--green); }
+.main { flex: 1; padding: 26px 30px; max-width: 1060px; margin: 0 auto; width: 100%; }
+.view { display: none; }
+.view.active { display: block; animation: fadeIn .25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+h1.page { font-size: 22px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 4px; }
+.page-sub { color: var(--muted); font-size: 13.5px; margin-bottom: 24px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.stat { background: linear-gradient(160deg, var(--card), var(--bg2)); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; position: relative; overflow: hidden; }
+.stat::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(91,140,255,.06), transparent 50%); pointer-events: none; }
+.stat .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.stat .val { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+.stat .val small { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 4px; }
+.stat.green .val { color: var(--green); }
+.stat.blue .val { color: var(--accent); }
+.addbar { background: linear-gradient(160deg, var(--card), var(--bg2)); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+.addbar textarea { width: 100%; height: 74px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 13.5px; resize: vertical; font-family: inherit; outline: none; transition: border-color .15s; }
+.addbar textarea:focus { border-color: var(--accent); }
+.addrow { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.addrow input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 9px 13px; flex: 1; min-width: 140px; font-size: 13.5px; outline: none; }
+.addrow input:focus { border-color: var(--accent); }
+button { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: 10px; padding: 10px 20px; cursor: pointer; font-size: 13.5px; font-weight: 600; font-family: inherit; transition: all .15s; box-shadow: 0 4px 14px rgba(91,140,255,.3); }
+button:hover { filter: brightness(1.12); transform: translateY(-1px); }
+button:active { transform: translateY(0); }
+button.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); box-shadow: none; }
+button.ghost:hover { color: var(--text); border-color: var(--muted2); }
+button.small { padding: 6px 12px; font-size: 12.5px; }
+.pkg { background: linear-gradient(160deg, var(--card), var(--bg2)); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; transition: border-color .2s; box-shadow: 0 4px 20px rgba(0,0,0,.18); }
+.pkg:hover { border-color: #33405c; }
+.pkghead { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; cursor: pointer; gap: 10px; }
+.pkghead .name { font-weight: 700; font-size: 14.5px; }
+.pkghead .meta { color: var(--muted); font-size: 12.5px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.progress { height: 4px; background: var(--border); }
+.progress > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent)); background-size: 200% 100%; animation: shimmer 2.2s linear infinite; transition: width .4s ease; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.btn-file { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-size: 13.5px; font-weight: 600; font-family: inherit; border: 1px solid var(--border); color: var(--muted); transition: all .15s; }
+.btn-file:hover { color: var(--text); border-color: var(--muted2); }
+.pkg.done .progress > div, .pkg.postprocessed .progress > div { background: var(--green); animation: none; }
+.badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; background: var(--card2); color: var(--muted); border: 1px solid var(--border); text-transform: uppercase; letter-spacing: .5px; }
+.badge.downloading { color: var(--green); border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
+.badge.done, .badge.postprocessed { color: var(--green); border-color: rgba(52,211,153,.3); background: rgba(52,211,153,.06); }
+.badge.error { color: var(--red); border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.08); }
+.badge.queued, .badge.new, .badge.ready { color: var(--yellow); border-color: rgba(251,191,36,.3); }
+.badge.processing { color: var(--cyan); border-color: rgba(34,211,238,.35); }
+.dlrow { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--border); font-size: 13px; }
+.dlrow:hover { background: rgba(255,255,255,.02); }
+.dlrow .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.dlrow .pct { width: 52px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dlrow .speed { color: var(--green); min-width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.err { color: var(--red); font-size: 12px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { text-align: center; color: var(--muted2); padding: 70px 20px; font-size: 14px; }
+.empty .big { font-size: 44px; margin-bottom: 14px; opacity: .5; }
+.set-card { background: linear-gradient(160deg, var(--card), var(--bg2)); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 16px; }
+.set-card h3 { font-size: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.set-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 14px; }
+.set-row:last-child { border-bottom: none; }
+.set-row .lbl { font-size: 13.5px; }
+.set-row .lbl small { display: block; color: var(--muted2); font-size: 12px; margin-top: 2px; }
+.set-row input, .set-row select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; width: 240px; outline: none; }
+.set-row input:focus { border-color: var(--accent); }
+.pw-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pw-chip { background: var(--card2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 12.5px; display: flex; gap: 8px; align-items: center; }
+.pw-chip .x { cursor: pointer; color: var(--muted2); }
+.pw-chip .x:hover { color: var(--red); }
+.acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.acc { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-size: 13px; }
+.acc .h { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 600; }
+.acc .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; box-shadow: 0 0 8px var(--green); }
+.acc .dot.off { background: var(--muted2); box-shadow: none; }
+.acc .exp { color: var(--muted2); font-size: 12px; }
+.clipbar { background: linear-gradient(135deg, rgba(91,140,255,.12), rgba(124,91,255,.08)); border: 1px solid rgba(91,140,255,.4); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 18px; display: none; animation: fadeIn .3s; }
+.clipbar .found { font-size: 13.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.clipbar .pulse { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 1.2s infinite; flex-shrink: 0; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(91,140,255,.25); } }
+button.nav-btn.logout {
+  margin-top: 10px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+  width: 100%;
+  text-align: left;
+}
+button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-color: rgba(255,107,107,.35); transform: none; filter: none; }
+@media (max-width: 760px) { .sidebar { display: none; } .main { padding: 16px; } }
+</style>
+</head>
+<body>
+<div class="app-shell">
+<aside class="sidebar">
+  <div class="logo"><div class="mark">⬇</div>Smartys Downloader</div>
+  <div class="nav-btn active" data-view="downloads"><span class="ico">📦</span>Downloads</div>
+  <div class="nav-btn" data-view="torrent"><span class="ico">🧲</span>Torrent</div>
+  <div class="nav-btn" data-view="schedule"><span class="ico">🕒</span>Zeitplan</div>
+  <div class="nav-btn" data-view="accounts"><span class="ico">🔑</span>Accounts</div>
+  <div class="nav-btn" data-view="settings"><span class="ico">⚙️</span>Einstellungen</div>
+  <div class="nav-spacer"></div>
+  <div class="nav-status">
+    <div>Aktiv: <b id="st-active">0</b></div>
+    <div>Speed: <b id="st-speed">0 MB/s</b></div>
+    <div id="st-debrid" style="margin-top:6px"></div>
+  </div>
+  <button class="nav-btn logout" onclick="doLogout()" title="Session beenden"><span class="ico">🚪</span>Abmelden</button>
+</aside>
+<main class="main">
+  <div class="view active" id="view-downloads">
+    <h1 class="page">Downloads</h1>
+    <div class="page-sub">Links einwerfen — der Clipboard-Watcher schlägt automatisch vor.</div>
+    <div class="stats-row">
+      <div class="stat blue"><div class="lbl">Aktive Downloads</div><div class="val" id="stat-active">0</div></div>
+      <div class="stat green"><div class="lbl">Geschwindigkeit</div><div class="val" id="stat-speed">0<small>MB/s</small></div></div>
+      <div class="stat"><div class="lbl">Warteschlange</div><div class="val" id="stat-queued">0</div></div>
+      <div class="stat"><div class="lbl">Pakete fertig</div><div class="val" id="stat-done">0</div></div>
+    </div>
+    <div class="clipbar" id="clipbar">
+      <div class="found"><span class="pulse"></span>📋 Clipboard-Fund: <span id="cliplinks"></span></div>
+      <button class="small" onclick="acceptClipboard()">Als Paket übernehmen</button>
+      <button class="small ghost" onclick="clearClipboard()">Verwerfen</button>
+    </div>
+    <div class="addbar">
+      <textarea id="links" placeholder="Links hier einwerfen — Filecrypt, hide.cx, Hoster-Links, mehrere pro Zeile…"></textarea>
+      <div class="addrow">
+        <input id="pkgname" placeholder="Paketname (optional)">
+        <input id="pkgpass" placeholder="Container-Passwort (optional)">
+        <select id="pkgcat" style="width:130px"></select>
+        <button onclick="addPackage()">Paket anlegen &amp; starten</button>
+      </div>
+    </div>
+    <div id="packages"></div>
+  </div>
+  <div class="view" id="view-torrent">
+    <h1 class="page">Torrent</h1>
+    <div class="page-sub">.torrent-Dateien und Magnet-Links — geladen über aria2</div>
+    <div class="addbar">
+      <textarea id="magnet" placeholder="Magnet-Link hier einwerfen…" style="min-height:60px"></textarea>
+      <div class="addrow">
+        <button onclick="addMagnet()">Magnet starten</button>
+        <label class="btn-file">.torrent auswählen<input id="torrent-file" type="file" accept=".torrent" onchange="addTorrentFile()" style="display:none"></label>
+        <span id="torrent-msg" style="font-size:13px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div id="torrent-list"></div>
+  </div>
+  <div class="view" id="view-schedule">
+    <h1 class="page">Zeitplan</h1>
+    <div class="page-sub">Downloads nur in bestimmten Zeitfenstern laufen lassen</div>
+    <div class="set-card">
+      <h3>🕒 Regel hinzufügen</h3>
+      <div class="set-row">
+        <div class="lbl">Paket<small>0 = gilt für alle Pakete</small></div>
+        <input id="sch-pkg" type="number" min="0" value="0" style="width:100px">
+      </div>
+      <div class="set-row">
+        <div class="lbl">Von</div><input id="sch-start" type="time" value="22:00">
+        <div class="lbl" style="margin-left:16px">Bis</div><input id="sch-end" type="time" value="06:00">
+      </div>
+      <div class="set-row">
+        <div class="lbl">Wochentage<small>leer = täglich</small></div>
+        <div id="sch-days" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+      <div class="set-row">
+        <div class="lbl">Aktiv</div>
+        <select id="sch-enabled"><option value="1">An</option><option value="0">Aus</option></select>
+      </div>
+      <div style="margin-top:8px"><button class="small" onclick="saveScheduleRule()">Regel speichern</button></div>
+    </div>
+    <div class="set-card">
+      <h3>📋 Gespeicherte Regeln</h3>
+      <div id="sch-list"></div>
+    </div>
+  </div>
+  <div class="view" id="view-accounts">
+    <h1 class="page">Accounts</h1>
+    <div class="page-sub">Multihoster-Dienste verwalten — Keys verschlüsselt gespeichert</div>
+    <div class="acc-grid" id="acc-grid"></div>
+
+    <div class="set-card" style="margin-top:18px">
+      <h3>➕ Dienst hinzufügen</h3>
+      <div class="set-row">
+        <div class="lbl">Dienst auswählen<small>Alle unterstützen Multihoster-Downloads</small></div>
+        <select id="svc-select" onchange="onServiceSelect()"></select>
+      </div>
+      <div id="svc-key-row" class="set-row">
+        <div class="lbl">API-Key<small id="svc-key-hint">Vom Dienst kopieren (siehe Link in der Auswahl)</small></div>
+        <div style="display:flex;gap:8px">
+          <input id="svc-api-key" type="password" placeholder="API-Key…" style="width:200px">
+          <button class="small" onclick="addServiceKey()">Speichern &amp; Prüfen</button>
+        </div>
+      </div>
+      <div id="svc-login-rows" style="display:none">
+        <div class="set-row">
+          <div class="lbl">Benutzername<small>Dein Login beim Dienst</small></div>
+          <input id="svc-username" placeholder="Benutzername…" style="width:200px">
+        </div>
+        <div class="set-row">
+          <div class="lbl">Passwort<small>Wird nur einmalig zum Holen des Keys genutzt — nie gespeichert</small></div>
+          <div style="display:flex;gap:8px">
+            <input id="svc-password" type="password" placeholder="Passwort…" style="width:200px">
+            <button class="small" onclick="addServiceLogin()">Login &amp; Key holen</button>
+          </div>
+        </div>
+      </div>
+      <div id="svc-msg" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <div class="set-card">
+      <h3>💾 Gespeicherte Dienste</h3>
+      <div id="svc-saved"></div>
+      <div style="font-size:12px;color:var(--muted2);margin-top:10px">
+        🔒 Keys liegen Fernet-verschlüsselt in der Datenbank (Gerät-Schlüssel: <code>~/.config/smartys-downloader/.keystore.key</code>) — nicht als Klartext lesbar.
+      </div>
+    </div>
+  </div>
+  <div class="view" id="view-settings">
+    <h1 class="page">Einstellungen</h1>
+    <div class="page-sub">Änderungen greifen sofort</div>
+    <div class="set-card">
+      <h3>⚡ Downloads</h3>
+      <div class="set-row"><div class="lbl">Parallele Downloads<small>Wie viele Dateien gleichzeitig</small></div><input id="set-parallel" type="number" min="1" max="20" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Segmente pro Datei<small>Parallele Verbindungen pro Download (Beschleuniger)</small></div><input id="set-segments" type="number" min="1" max="32" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Speed-Limit (KB/s)<small>0 = unbegrenzt</small></div><input id="set-speed" type="number" min="0" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Download-Ordner<small>Aus smartdl.env / Installer</small></div><input id="set-dl-dir" disabled></div>
+    </div>
+    <div class="set-card">
+      <h3>🔄 Reconnect</h3>
+      <div class="set-row"><div class="lbl">Fritz!Box Host<small>z. B. 192.168.178.1 — für neue IP</small></div><input id="set-rc-host" placeholder="leer = aus" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Fritz!Box Benutzer</div><input id="set-rc-user" placeholder="Benutzername" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Fritz!Box Passwort<small>Wird gespeichert (settings-Tabelle)</small></div><input id="set-rc-pass" type="password" placeholder="Passwort" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Reconnect-URL<small>Alternative: GET = neue Verbindung</small></div><input id="set-rc-url" placeholder="http://router/reconnect" onchange="saveSettings()"></div>
+      <div style="margin-top:8px"><button class="small" onclick="doReconnect()">Jetzt reconnecten</button> <span id="rc-msg" style="font-size:13px;color:var(--muted)"></span></div>
+    </div>
+    <div class="set-card">
+      <h3>🔑 Debrid-Dienste</h3>
+      <div class="set-row"><div class="lbl">Reihenfolge<small>Komma-getrennt — der erste Dienst, der den Hoster kennt, gewinnt</small></div><input id="set-debrid-order" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Clipboard-Watcher<small>Links aus der Zwischenablage vorschlagen</small></div><select id="set-clipboard" onchange="saveSettings()"><option value="1">An</option><option value="0">Aus</option></select></div>
+    </div>
+    <div class="set-card">
+      <h3>🎬 Nachbearbeitung</h3>
+      <div style="margin:14px 0 4px;font-size:13px;color:var(--muted2);font-weight:600">📁 Nachbearbeitung — Download-Ziele je Kategorie (rsync)</div><div id="cat-targets"></div><div style="font-size:12px;color:var(--muted2);margin-top:6px">Leer = nur entpacken, nichts kopieren. Formate: <code>user@host:/pfad/</code> oder <code>/lokaler/pfad/</code></div>
+    </div>
+    <div class="set-card">
+      <h3>🔐 Passwörter</h3>
+      <div class="set-row"><div class="lbl">Neues Passwort<small>Für Container &amp; Archive — wird automatisch durchgetestet</small></div>
+        <div style="display:flex;gap:8px"><input id="new-pw" placeholder="Passwort…" style="width:160px"><button class="small" onclick="addPassword()">Hinzufügen</button></div>
+      </div>
+      <div class="pw-list" id="pw-list"></div>
+    </div>
+    <div class="set-card">
+      <h3>🛡 Web-Login &amp; 2FA</h3>
+      <div id="login-state"></div>
+      <div class="set-row" style="margin-top:8px"><div class="lbl">Neues Passwort setzen<small>Min. 12 Zeichen, Groß+Klein, Zahl &amp; Sonderzeichen</small></div>
+        <div style="display:flex;gap:8px"><input id="new-web-pw" type="password" placeholder="Neues Passwort…" style="width:160px"><button class="small" onclick="setWebPassword()">Setzen</button></div>
+      </div>
+      <div class="set-row"><div class="lbl">Zwei-Faktor (TOTP)<small>Google Authenticator, Authy, 1Password &amp; Co.</small></div>
+        <div id="twofa-state" style="display:flex;gap:8px;align-items:center"></div>
+      </div>
+      <div id="twofa-setup" style="display:none;padding-top:12px">
+        <div style="text-align:center;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:10px">1. Secret in deine Authenticator-App tippen (oder QR scannen)<br>2. Den 6-stelligen Code bestätigen</div>
+          <div id="qr-holder" style="margin-bottom:10px"></div>
+          <div id="totp-secret" style="font-family:monospace;font-size:15px;letter-spacing:1px;margin-bottom:12px;user-select:all"></div>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <input id="totp-code" placeholder="000000" maxlength="6" style="width:110px;text-align:center;font-size:17px;letter-spacing:5px" inputmode="numeric">
+            <button class="small" onclick="confirm2FA()">Bestätigen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+<script>
+let pkgData = [];
+let expanded = new Set();
+const $ = (id) => document.getElementById(id);
+const fmt = (b) => { if (!b) return '0 B'; const u = ['B','KB','MB','GB','TB']; const i = Math.floor(Math.log(b) / Math.log(1024)); return (b/1024**i).toFixed(1) + ' ' + u[i]; };
+const fmtSpeed = (b) => fmt(b) + '/s';
+const fmtEta = (s) => { if (!s) return '—'; if (s > 3600) return Math.floor(s/3600) + 'h ' + Math.floor(s%3600/60) + 'm'; if (s > 60) return Math.floor(s/60) + 'm ' + (s%60) + 's'; return s + 's'; };
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    $('view-' + btn.dataset.view).classList.add('active');
+    if (btn.dataset.view === 'accounts') { loadAccounts(); loadServices(); }
+    if (btn.dataset.view === 'settings') loadSettings();
+    if (btn.dataset.view === 'torrent') loadTorrent();
+    if (btn.dataset.view === 'schedule') loadSchedule();
+  });
+});
+
+async function loadPackages() {
+  try {
+    const r = await fetch('/api/packages');
+    if (r.status === 401) { location.href = '/login'; return; }
+    pkgData = await r.json();
+    render();
+  } catch (e) {}
+}
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status');
+    if (r.status === 401) return;
+    const s = await r.json();
+    $('st-active').textContent = s.active;
+    $('st-speed').textContent = fmtSpeed(s.speed);
+    $('stat-active').textContent = s.active;
+    $('stat-speed').innerHTML = fmt(s.speed).replace(/ ([A-Z]+)$/, '<small>$1</small>');
+    const clip = await (await fetch('/api/clipboard')).links;
+    if (clip.length) { $('clipbar').style.display = 'block'; $('cliplinks').textContent = clip.map(l => l.url.substring(0, 55)).join(', '); }
+    else { $('clipbar').style.display = 'none'; }
+  } catch (e) {}
+}
+async function addPackage() {
+  const cat = $('pkgcat').value || 'movie';
+  const links = $('links').value;
+  const r = await fetch('/api/packages', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ links, name: $('pkgname').value, password: $('pkgpass').value, category: cat }) });
+  const j = await r.json();
+  if (!j.ok) { alert(j.error); return; }
+  $('links').value = ''; $('pkgname').value = '';
+  await loadPackages();
+  startPackage(j.package_id);
+}
+async function startPackage(pid) { await fetch('/api/packages/' + pid + '/start', {method: 'POST'}); loadPackages(); }
+async function deletePackage(pid) { if (!confirm('Paket wirklich löschen?')) return; await fetch('/api/packages/' + pid, {method: 'DELETE'}); loadPackages(); }
+async function acceptClipboard() { const clip = await (await fetch('/api/clipboard')).links; $('links').value = clip.map(l => l.url).join('\n'); await clearClipboard(); }
+async function clearClipboard() { await fetch('/api/clipboard/clear', {method: 'POST'}); loadStatus(); }
+async function dlAction(did, action) { await fetch('/api/downloads/' + did + '/' + action, {method: 'POST'}); loadPackages(); }
+function togglePkg(pid) { expanded.has(pid) ? expanded.delete(pid) : expanded.add(pid); render(); }
+
+async function render() {
+  const el = $('packages');
+  if (!pkgData.length) { el.innerHTML = '<div class="empty"><div class="big">⬇</div>Noch keine Pakete —<br>Links oben einwerfen oder einfach kopieren.</div>'; $('stat-done').textContent = '0'; return; }
+  $('stat-done').textContent = pkgData.filter(p => ['done','postprocessed'].includes(p.status)).length;
+  let html = '';
+  for (const p of pkgData) {
+    const pct = p.total_size ? Math.min(100, Math.round(p.total_downloaded / p.total_size * 100)) : 0;
+    html += `<div class="pkg ${p.status}">
+      <div class="pkghead" onclick="togglePkg(${p.id})">
+        <div class="name">${p.name}</div>
+        <div class="meta">
+          <span class="badge ${p.status}">${p.status}</span>
+          <span>${p.n_done}/${p.n_links} Dateien</span>
+          <span>${fmt(p.total_downloaded)} / ${fmt(p.total_size)}</span>
+          <span style="font-weight:700">${pct}%</span>
+          <button class="small ghost" onclick="event.stopPropagation();deletePackage(${p.id})">🗑</button>
+        </div>
+      </div>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      ${expanded.has(p.id) ? `<div id="pkgbody-${p.id}"></div>` : ''}
+    </div>`;
+  }
+  el.innerHTML = html;
+  for (const p of pkgData) {
+    if (expanded.has(p.id)) {
+      const r = await fetch('/api/packages/' + p.id + '/downloads');
+      const dls = await r.json();
+      $('stat-queued').textContent = dls.filter(d => d.status === 'queued').length;
+      const body = $('pkgbody-' + p.id);
+      if (!body) continue;
+      body.innerHTML = dls.map(d => {
+        const dpct = d.size ? Math.min(100, Math.round(d.downloaded/d.size*100)) : 0;
+        const isDl = d.status === 'downloading';
+        return `<div class="dlrow">
+          <span class="badge ${d.status}">${d.status}</span>
+          <span class="fname" title="${d.filename || d.source_url}">${d.filename || d.source_url}</span>
+          ${d.via ? `<span style="color:var(--muted2);font-size:11px">${d.via}</span>` : ''}
+          ${d.error ? `<span class="err" title="${d.error}">⚠ ${d.error}</span>` : ''}
+          ${isDl ? `<span class="speed">${fmtSpeed(d.speed)} · ${fmtEta(d.eta)}</span>` : ''}
+          <span class="pct">${dpct}%</span>
+          ${isDl ? `<button class="small ghost" onclick="dlAction(${d.id},'pause')">⏸</button>` : ''}
+          ${['paused','error','new'].includes(d.status) ? `<button class="small ghost" onclick="dlAction(${d.id},'resume')">▶</button>` : ''}
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+// ===== Dienst-Verwaltung =====
+const SVC_HINTS = {
+  realdebrid: 'real-debrid.com → Mein Account → API-Token',
+  debridlink: 'debrid-link.fr → Einstellungen → API',
+  alldebrid: 'alldebrid.com → Mein Account → API Key',
+  premiumize: 'premiumize.me → Account → API Key',
+  torbox: 'torbox.app → Settings → API Key',
+  easydebrid: 'easydebrid.com → Account → API',
+  linksnappy: 'linksnappy.com — oder direkt mit Login',
+  offcloud: 'offcloud.com → Account → API Key',
+};
+async function loadServices() {
+  const r = await fetch('/api/services');
+  const svcs = await r.json();
+  const sel = $('svc-select');
+  sel.innerHTML = svcs.map(s => `<option value="${s.name}">${s.name}${s.configured ? ' ✓' : ''}</option>`).join('');
+  // gespeicherte dienste-liste:
+  const saved = $('svc-saved');
+  saved.innerHTML = svcs.map(s => `
+    <div class="set-row">
+      <div class="lbl">${s.name}
+        <small>${s.via_store ? 'verschlüsselt gespeichert' : ''}${s.via_store && s.via_env ? ' + env' : ''}${s.via_env && !s.via_store ? 'via env' : ''}</small>
+      </div>
+      <div style="display:flex;gap:8px">
+        ${s.via_store ? `<button class="small danger" onclick="removeService('${s.name}')">Entfernen</button>` : ''}
+      </div>
+    </div>`).join('');
+  onServiceSelect();
+}
+function onServiceSelect() {
+  const name = $('svc-select').value;
+  const hint = SVC_HINTS[name] || 'API-Key vom Dienst';
+  $('svc-key-hint').textContent = hint;
+  // login-flow nur wenn verfügbar (derzeit linksnappy)
+  fetch('/api/services').then(r => r.json()).then(svcs => {
+    const s = svcs.find(x => x.name === name);
+    const loginOk = s && s.login_flow;
+    $('svc-login-rows').style.display = loginOk ? 'block' : 'none';
+    $('svc-key-row').style.display = 'block';
+  });
+}
+async function addServiceKey() {
+  const name = $('svc-select').value;
+  const key = $('svc-api-key').value.trim();
+  if (!key) { alert('Key eingeben'); return; }
+  const r = await fetch(`/api/services/${name}/key`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({api_key: key})
+  });
+  const j = await r.json();
+  const msg = $('svc-msg');
+  if (j.ok) {
+    msg.innerHTML = `<span style="color:var(--green)">✓ ${name} gespeichert (Account: ${j.user})</span>`;
+    $('svc-api-key').value = '';
+    loadServices(); loadAccounts();
+  } else {
+    msg.innerHTML = `<span style="color:var(--red)">✗ ${j.error}</span>`;
+  }
+}
+async function addServiceLogin() {
+  const name = $('svc-select').value;
+  const username = $('svc-username').value.trim();
+  const password = $('svc-password').value;
+  const r = await fetch(`/api/services/${name}/login`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username, password})
+  });
+  const j = await r.json();
+  const msg = $('svc-msg');
+  if (j.ok) {
+    msg.innerHTML = `<span style="color:var(--green)">✓ ${name}: Key geholt &amp; verschlüsselt gespeichert</span>`;
+    $('svc-username').value = ''; $('svc-password').value = '';
+    loadServices(); loadAccounts();
+  } else {
+    msg.innerHTML = `<span style="color:var(--red)">✗ ${j.error}</span>`;
+  }
+}
+async function removeService(name) {
+  if (!confirm(`${name} wirklich entfernen?`)) return;
+  await fetch(`/api/services/${name}`, {method: 'DELETE'});
+  loadServices(); loadAccounts();
+}
+
+async function loadAccounts() {
+  const r = await fetch('/api/debrid/status');
+  const d = await r.json();
+  let html = '';
+  for (const [name, info] of Object.entries(d)) {
+    if (info.error) { html += `<div class="acc"><div class="h">${name}<span class="dot off"></span></div><div class="exp">${info.error}</div></div>`; }
+    else { html += `<div class="acc"><div class="h">${name}<span><span class="dot"></span>${info.premium ? 'Premium' : 'Free'}</span></div><div class="exp">${info.user || '?'}${info.expires ? ' · bis ' + String(info.expires).substring(0,10) : ''}</div></div>`; }
+  }
+  $('acc-grid').innerHTML = html;
+  $('st-debrid').innerHTML = Object.values(d).filter(x => !x.error && x.premium).length + ' Debrid aktiv';
+}
+
+let currentSettings = {};
+// ===== Kategorie-Ziele =====
+function renderCatTargets(cats, targets) {
+  $('cat-targets').innerHTML = cats.map(c => `
+    <div class="set-row"><div class="lbl">${c.label}<small>Paket-Kategorie „${c.key}"</small></div>
+    <input id="cat-${c.key}" placeholder="rsync-Ziel für ${c.label}…" value="${targets[c.key] || ''}" style="width:260px" onchange="saveSettings()"></div>`).join('');
+}
+function collectCatTargets() {
+  const t = {};
+  document.querySelectorAll('[id^="cat-"]').forEach(el => { t[el.id.slice(4)] = el.value.trim(); });
+  return t;
+}
+
+async function fillCategorySelect() {
+  try {
+    const s = await (await fetch('/api/settings')).json();
+    $('pkgcat').innerHTML = (s.categories || []).map(c =>
+      `<option value="${c.key}">${c.label}</option>`).join('');
+  } catch (e) {}
+}
+
+async function loadSettings() {
+  const r = await fetch('/api/settings');
+  currentSettings = await r.json();
+  $('set-parallel').value = currentSettings.max_parallel;
+  $('set-speed').value = currentSettings.speed_limit_kb;
+  $('set-segments').value = currentSettings.segments || 8;
+  $('set-dl-dir').value = currentSettings.download_dir;
+  $('set-debrid-order').value = currentSettings.debrid_order;
+  $('set-clipboard').value = currentSettings.clipboard_watch;
+  const rc = currentSettings.reconnect || {};
+  $('set-rc-host').value = rc.fritz_host || '';
+  $('set-rc-user').value = rc.fritz_user || '';
+  $('set-rc-pass').value = rc.fritz_pass || '';
+  $('set-rc-url').value = rc.url || '';
+  renderCatTargets(currentSettings.categories || [], currentSettings.category_targets || {});
+  $('set-debrid-order').placeholder = currentSettings.debrid_services.join(',');
+  const pwr = await fetch('/api/passwords');
+  const pwd = await pwr.json();
+  $('pw-list').innerHTML = (pwd.passwords || []).map(p => `<span class="pw-chip">${p}<span class="x" onclick="removePassword('${p}')">×</span></span>`).join('');
+  const lr = await fetch('/api/auth/status');
+  const ls = await lr.json();
+  $('login-state').innerHTML = ls.login_required ? '<span style="color:var(--green)">● Login aktiv</span>' : '<span style="color:var(--yellow)">○ Kein Passwort gesetzt — Panel ist offen (nur für localhost empfohlen)</span>';
+  load2FAState();
+}
+async function saveSettings() {
+  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, category_targets: collectCatTargets() };
+  await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+}
+async function addPassword() {
+  const pw = $('new-pw').value.trim();
+  if (!pw) return;
+  await fetch('/api/passwords', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw}) });
+  $('new-pw').value = '';
+  loadSettings();
+}
+async function removePassword(pw) {
+  const r = await fetch('/api/passwords');
+  const {passwords} = await r.json();
+  const keep = passwords.filter(p => p !== pw);
+  await fetch('/api/passwords', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({passwords: keep}) });
+  loadSettings();
+}
+// ===== Torrent =====
+async function loadTorrent() {
+  const el = $('torrent-list');
+  try {
+    const r = await fetch('/api/torrent');
+    const j = await r.json();
+    if (!j.available) {
+      el.innerHTML = '<div style="color:var(--yellow);padding:16px;border:1px solid var(--border);border-radius:10px">⚠️ aria2c nicht installiert — Torrent/Magnet braucht <code>sudo apt install aria2</code>.</div>';
+      return;
+    }
+    if (!j.torrents.length) {
+      el.innerHTML = '<div style="color:var(--muted2);padding:16px">Keine aktiven Torrents.</div>';
+      return;
+    }
+    el.innerHTML = j.torrents.map(t => `
+      <div class="pkg-card" style="padding:12px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name || t.gid}</div>
+            <div style="font-size:12px;color:var(--muted2);margin-top:3px">${fmt(t.downloaded)} / ${fmt(t.total)} · ${fmtSpeed(t.speed)} · Seeds ${t.seeds} · Peers ${t.peers}</div>
+            <div class="progress" style="margin-top:8px"><div style="width:${Math.round((t.progress||0)*100)}%"></div></div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="small ghost" onclick="torrentAction('${t.gid}','pause')">⏸</button>
+            <button class="small ghost" onclick="torrentAction('${t.gid}','resume')">▶</button>
+            <button class="small ghost" onclick="torrentAction('${t.gid}','remove')">🗑</button>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch (e) { el.innerHTML = '<div style="color:var(--red)">Torrent-Status nicht erreichbar.</div>'; }
+}
+async function torrentAction(gid, action) {
+  await fetch('/api/torrent/' + action, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({gid}) });
+  loadTorrent();
+}
+async function addMagnet() {
+  const magnet = $('magnet').value.trim();
+  if (!magnet) return;
+  const r = await fetch('/api/torrent/magnet', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({magnet}) });
+  const j = await r.json();
+  $('torrent-msg').textContent = j.ok ? '✓ gestartet' : '✗ ' + (j.error || 'Fehler');
+  $('torrent-msg').style.color = j.ok ? 'var(--green)' : 'var(--red)';
+  if (j.ok) $('magnet').value = '';
+  loadTorrent();
+}
+async function addTorrentFile() {
+  const f = $('torrent-file').files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  const r = await fetch('/api/torrent/file', { method: 'POST', body: fd });
+  const j = await r.json();
+  $('torrent-msg').textContent = j.ok ? '✓ gestartet' : '✗ ' + (j.error || 'Fehler');
+  $('torrent-msg').style.color = j.ok ? 'var(--green)' : 'var(--red)';
+  loadTorrent();
+}
+
+// ===== Zeitplan =====
+const DAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+function renderDayToggles(sel) {
+  const el = $('sch-days');
+  el.innerHTML = DAYS.map((d, i) => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" value="${i}" ${sel.includes(i) ? 'checked' : ''}>${d}</label>`).join('');
+}
+async function loadSchedule() {
+  renderDayToggles([]);
+  const r = await fetch('/api/schedule');
+  const rules = await r.json();
+  const el = $('sch-list');
+  if (!rules.length) {
+    el.innerHTML = '<div style="color:var(--muted2);padding:8px">Keine Regeln — Downloads laufen immer.</div>';
+    return;
+  }
+  el.innerHTML = rules.map((r, i) => {
+    const days = (r.days || []).map(d => DAYS[d]).join(' ') || 'täglich';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;font-size:13px">${r.package_id ? 'Paket '+r.package_id : 'Alle Pakete'} · ${r.window_start}–${r.window_end} · ${days}</div>
+      <span style="font-size:12px;color:${r.enabled ? 'var(--green)' : 'var(--muted2)'}">${r.enabled ? 'aktiv' : 'aus'}</span>
+      <button class="small ghost" onclick="removeScheduleRule(${i})">🗑</button>
+    </div>`;
+  }).join('');
+}
+async function saveScheduleRule() {
+  const r = await fetch('/api/schedule');
+  let rules = await r.json();
+  const days = [...$('sch-days').querySelectorAll('input:checked')].map(c => parseInt(c.value));
+  rules.push({
+    package_id: parseInt($('sch-pkg').value || 0),
+    window_start: $('sch-start').value,
+    window_end: $('sch-end').value,
+    days: days,
+    enabled: $('sch-enabled').value === '1',
+  });
+  await fetch('/api/schedule', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({rules}) });
+  loadSchedule();
+}
+async function removeScheduleRule(idx) {
+  const r = await fetch('/api/schedule');
+  let rules = await r.json();
+  rules.splice(idx, 1);
+  await fetch('/api/schedule', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({rules}) });
+  loadSchedule();
+}
+
+// ===== Reconnect =====
+async function doReconnect() {
+  const el = $('rc-msg');
+  el.textContent = 'Verbinde…';
+  el.style.color = 'var(--muted)';
+  const r = await fetch('/api/reconnect', { method: 'POST' });
+  const j = await r.json();
+  if (j.ok) {
+    el.textContent = j.changed ? `✓ Neue IP: ${j.ip_before} → ${j.ip_after}` : `✓ Reconnect ok (IP gleich: ${j.ip_after})`;
+    el.style.color = 'var(--green)';
+  } else {
+    el.textContent = '✗ ' + (j.error || 'fehlgeschlagen');
+    el.style.color = 'var(--red)';
+  }
+}
+
+// ===== Logout =====
+async function doLogout() {
+  await fetch('/api/auth/logout', {method: 'POST'});
+  document.cookie = 'smartdl_session=; Max-Age=0; path=/; SameSite=Lax';
+  location.href = '/login';
+}
+
+// ===== 2FA =====
+let pending2fa = '';
+async function load2FAState() {
+  const r = await fetch('/api/auth/status');
+  const s = await r.json();
+  const el = $('twofa-state');
+  if (s.twofa) {
+    el.innerHTML = '<span style="color:var(--green);font-size:13px">● Aktiv</span> <button class="small ghost" onclick="disable2FA()">Deaktivieren</button>';
+  } else {
+    el.innerHTML = '<button class="small" onclick="setup2FA()">Aktivieren</button>';
+  }
+}
+async function setup2FA() {
+  const r = await fetch('/api/auth/2fa/setup', {method: 'POST'});
+  const j = await r.json();
+  if (!j.ok) { alert(j.error); return; }
+  pending2fa = j.secret;
+  $('totp-secret').textContent = j.secret;
+  $('twofa-setup').style.display = 'block';
+  $('qr-holder').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(j.uri)}" width="160" height="160" style="border-radius:8px;background:#fff;padding:6px" onerror="this.style.display='none'">`;
+}
+async function confirm2FA() {
+  const code = $('totp-code').value;
+  const r = await fetch('/api/auth/2fa/enable', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({secret: pending2fa, code})
+  });
+  const j = await r.json();
+  if (!j.ok) { alert('Code falsch: ' + j.error); return; }
+  alert('2FA aktiviert — ab jetzt brauchst du beim Login den Authenticator-Code.');
+  $('twofa-setup').style.display = 'none';
+  load2FAState();
+}
+async function disable2FA() {
+  const pw = prompt('2FA deaktivieren — bitte Passwort eingeben:');
+  if (!pw) return;
+  const code = prompt('Und den aktuellen 6-stelligen 2FA-Code aus der App:');
+  if (!code) return;
+  const r = await fetch('/api/auth/2fa/disable', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({password: pw, code})
+  });
+  const j = await r.json();
+  if (!j.ok) { alert('✗ ' + j.error); return; }
+  load2FAState();
+}
+
+async function setWebPassword() {
+  const pw = $('new-web-pw').value;
+  if (pw.length < 4) { alert('mindestens 4 Zeichen'); return; }
+  const r = await fetch('/api/auth/password', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw}) });
+  const j = await r.json();
+  alert(j.ok ? 'Passwort gesetzt — ab jetzt ist ein Login nötig.' : ('Fehler: ' + j.error));
+  $('new-web-pw').value = '';
+  loadSettings();
+}
+
+loadPackages();
+loadStatus();
+setInterval(loadPackages, 3000);
+setInterval(loadStatus, 2000);
+</script>
+</body>
+</html>
+document.addEventListener('DOMContentLoaded', fillCategorySelect);

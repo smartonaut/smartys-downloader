@@ -1,0 +1,14 @@
+Package: smartys-downloader
+Version: 0.3.1
+Section: net
+Priority: optional
+Architecture: amd64
+Depends: rsync
+Recommends: unrar | p7zip-full
+Maintainer: Smarty <kontakt@smartys.tech>
+Description: Smartys Downloader — Download-Manager mit Multihoster-Support
+ Debrid-Router (Real-Debrid, DebridLink, AllDebrid, Premiumize, TorBox,
+ EasyDebrid, LinkSnappy, Offcloud), Container-Auflösung (Filecrypt via
+ FlareSolverr, hide.cx-API), Paket-Downloads mit Kategorie-Zielen,
+ Web-Panel mit Login + 2FA (TOTP), verschlüsselter API-Key-Store.
+ Web-Panel: http://127.0.0.1:8765
