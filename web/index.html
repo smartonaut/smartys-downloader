@@ -811,13 +811,14 @@ async function loadReleases() {
         <span style="width:80px;font-size:11px;color:var(--muted2)">${r.type||''}</span>
         <span style="width:80px;font-size:11px;color:var(--muted2)">${r.size||''}</span>
         <span style="width:40px;font-size:11px;color:var(--accent)">${r.lang||''}</span>
-        <button class="small" onclick="xdccQ('${(r.title||'').replace(/'/g,\"\\\\'\")}')">🔍</button>
+        <button class="small" data-q="${escAttr(r.title||'')}" onclick="xdccQ(this.dataset.q)">🔍</button>
       </div>`).join('') || '<div style="font-size:13px;color:var(--muted2);padding:12px">keine Releases</div>';
     $('rel-status').textContent = `${rels.length} Releases`;
   } catch (e) {
     $('rel-status').textContent = 'Fehler';
   }
 }
+function escAttr(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 function xdccQ(q) {
   $('xdcc-q').value = q;
   document.querySelector('.nav-btn[data-view="xdcc"]').click();
