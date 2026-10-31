@@ -820,6 +820,31 @@ async def ai_chat(request: Request):
         return {"ok": False, "error": f"KI nicht erreichbar: {str(e)[:140]}"}
 
 
+@app.get("/api/ai/models")
+def ai_models():
+    from . import ai
+    return {"models": ai.list_models(), "reachable": ai.is_reachable()}
+
+
+@app.get("/api/ai/gpu")
+def ai_gpu():
+    from . import gpudetect
+    return gpudetect.gpu_summary()
+
+
+@app.post("/api/ai/pull")
+async def ai_pull(request: Request):
+    body = await request.json()
+    model = str(body.get("model", "")).strip()
+    if not model:
+        return {"ok": False, "error": "kein Modellname"}
+    from . import ai
+    try:
+        return ai.pull_model(model)
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:140]}
+
+
 @app.get("/api/vpn/status")
 def vpn_status():
     from . import vpn
