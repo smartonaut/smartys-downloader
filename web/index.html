@@ -211,8 +211,19 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
     <div class="page-sub">Sag einfach, was du willst — die KI sucht über die XDCC-Suchmaschinen und lädt es herunter.</div>
     <div id="ai-chat" style="min-height:300px;max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:14px"></div>
     <div class="addbar" style="display:flex;gap:8px;margin-top:12px">
-      <input id="ai-input" placeholder="z. B. „lade Verity – Dunkle Geheimnisse (deutsch)"" style="flex:1" onkeydown="if(event.key==='Enter')aiSend()">
+      <input id="ai-input" placeholder="z. B. „lade Verity – Dunkle Geheimnisse (deutsch)" style="flex:1" onkeydown="if(event.key==='Enter')aiSend()">
       <button onclick="aiSend()">Senden</button>
+    </div>
+    <div style="margin-top:12px;font-size:12.5px;color:var(--muted2);line-height:1.9">
+      <div style="font-weight:600;color:var(--muted)">Befehle (Syntax):</div>
+      <div>⬇️ <code style="background:var(--card);padding:1px 6px;border-radius:4px">lade &lt;Titel&gt; (&lt;Sprache&gt;)</code> → lädt den besten Treffer automatisch</div>
+      <div>🔍 <code style="background:var(--card);padding:1px 6px;border-radius:4px">suche &lt;Titel&gt;</code> → durchsucht alle XDCC-Suchmaschinen</div>
+      <div style="margin-top:6px">Beispiel: <code style="background:var(--card);padding:1px 6px;border-radius:4px">lade Verity – Dunkle Geheimnisse (deutsch)</code></div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="small" onclick="aiExample(this)">lade Verity – Dunkle Geheimnisse (deutsch)</button>
+        <button class="small" onclick="aiExample(this)">suche Dune 2</button>
+        <button class="small" onclick="aiExample(this)">was gibt es Neues von …?</button>
+      </div>
     </div>
   </div>
   <div class="view" id="view-releases">
@@ -866,6 +877,10 @@ async function saveNickservPw() {
   $('set-irc-nspw').value = '';
 }
 // ===== KI-Assistent =====
+function aiExample(btn) {
+  $('ai-input').value = btn.textContent.trim();
+  $('ai-input').focus();
+}
 let aiHistory = [];
 function aiAdd(role, text) {
   const el = document.createElement('div');
