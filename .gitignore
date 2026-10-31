@@ -7,9 +7,14 @@ downloads/
 smartdl.log
 smartdl.db
 smartdl.db-shm
-smartdl.db-walbuild/
+smartdl.db-wal
+build/
 dist/
-releases/*.deb
+releases/
+*.zip
+*.deb
+*.exe
+.keystore.key
 
 # Container-/Archiv-Passwörter (privat, werden zur Laufzeit erzeugt)
 archive_passwords.txt
