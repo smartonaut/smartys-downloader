@@ -218,6 +218,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   <div class="view" id="view-releases">
     <h1 class="page">Release-Info</h1>
     <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen (xrel.to, scenenews …).</div>
+    <div id="rel-cats" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div class="addbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="loadReleases()">🔄 Aktualisieren</button>
       <select id="rel-sort" onchange="loadReleases()"><option value="time">Neueste zuerst</option><option value="title">Titel A–Z</option></select>
@@ -439,6 +440,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (btn.dataset.view === 'torrent') loadTorrent();
     if (btn.dataset.view === 'schedule') loadSchedule();
     if (btn.dataset.view === 'xdcc') { loadXdcc(); fillXdcCat(); }
+    if (btn.dataset.view === 'releases') { renderRelCategories(); loadReleases(); }
   });
 });
 
@@ -628,6 +630,7 @@ let currentSettings = {};
 let currentEngines = [];
 let currentHosterSites = [];
 let currentInfoSources = [];
+let currentRelCategory = '';
 // ===== Kategorie-Ziele =====
 function renderCatTargets(cats, targets) {
   $('cat-targets').innerHTML = cats.map(c => `
@@ -802,10 +805,26 @@ async function addInfoSource() {
   $('is-name').value = ''; $('is-url').value = '';
   renderInfoSources();
 }
+async function renderRelCategories() {
+  try {
+    const r = await (await fetch('/api/releases/categories')).json();
+    const cats = ['', ...(r.categories || [])];
+    $('rel-cats').innerHTML = cats.map(c => {
+      const label = c === '' ? 'Neueste' : c;
+      const active = c === currentRelCategory ? 'background:var(--accent);color:#fff;' : '';
+      return `<button class="small" style="padding:5px 12px;${active}" onclick="setRelCategory('${c}')">${label}</button>`;
+    }).join('');
+  } catch (e) {}
+}
+function setRelCategory(c) {
+  currentRelCategory = c;
+  renderRelCategories();
+  loadReleases();
+}
 async function loadReleases() {
   $('rel-status').textContent = 'lade…';
   try {
-    const params = new URLSearchParams({ sort: $('rel-sort').value, lang: $('rel-lang').value, q: $('rel-q').value.trim() });
+    const params = new URLSearchParams({ sort: $('rel-sort').value, lang: $('rel-lang').value, q: $('rel-q').value.trim(), category: currentRelCategory });
     const d = await (await fetch('/api/releases?' + params)).json();
     const rels = d.releases || [];
     $('rel-list').innerHTML = rels.map(r =>

@@ -17,7 +17,17 @@ from datetime import datetime
 
 from . import store
 
-XREL_API = "https://api.xrel.to/v2/release/latest.json"
+XREL_API = "https://api.xrel.to/v2"
+
+# xREL-Kategorien für das Menü (wie xrel.to): Label → (category_name, ext_info_type)
+CATEGORIES = [
+    ("Serien", "TV", "tv"),
+    ("Filme", "MOVIES", "movie"),
+    ("Konsole", "CONSOLE", "console"),
+    ("Software", "APPS", "software"),
+    ("Top Filme", "TOPMOVIE", ""),
+    ("Top Games", "TOPGAME", ""),
+]
 
 
 def get_sources() -> list[dict]:
@@ -57,10 +67,11 @@ def _fetch_json(url: str) -> dict:
         return json.loads(r.read().decode("utf-8", "replace"))
 
 
-def _parse_xrel(url: str) -> list[dict]:
-    data = _fetch_json(url + ("&" if "?" in url else "?") + "per_page=100")
+def _parse_xrel_data(data) -> list[dict]:
+    """xREL-Release-Liste (latest oder browse_category) → vereinheitlichte Dicts."""
+    items = data if isinstance(data, list) else data.get("list", [])
     out = []
-    for r in data.get("list", []):
+    for r in items:
         ext = r.get("ext_info", {})
         title = ext.get("title", "?")
         season = r.get("tv_season")
@@ -84,6 +95,17 @@ def _parse_xrel(url: str) -> list[dict]:
             "time": ts,
         })
     return out
+
+
+def _parse_xrel(base: str) -> list[dict]:
+    data = _fetch_json(base.rstrip("/") + "/release/latest.json?per_page=100")
+    return _parse_xrel_data(data)
+
+
+def _fetch_category(base: str, category_name: str, ext_info_type: str = "") -> list[dict]:
+    url = base.rstrip("/") + "/release/browse_category.json?" + urllib.parse.urlencode({
+        "category_name": category_name, "ext_info_type": ext_info_type, "per_page": 100})
+    return _parse_xrel_data(_fetch_json(url))
 
 
 def _parse_rss(url: str) -> list[dict]:
@@ -157,6 +179,37 @@ def fetch_releases(sources: list[dict] | None = None, limit: int = 200,
     if q:
         out = [r for r in out if q.lower() in r["title"].lower()]
     # Sort: default neueste zuerst (nach Zeit), sonst Titel
+    if sort == "title":
+        out.sort(key=lambda r: r["title"].lower())
+    else:
+        out.sort(key=lambda r: r["time"], reverse=True)
+    return out[:limit]
+
+
+def fetch_category(category_label: str, limit: int = 200, sort: str = "time",
+                   lang: str = "", quality: str = "", q: str = "") -> list[dict]:
+    """Releases einer xREL-Kategorie (Serien/Filme/Konsole/Software/Top…)."""
+    cat = next((c for c in CATEGORIES if c[0].lower() == category_label.lower()), None)
+    if cat is None:
+        return []
+    label, category_name, ext_info_type = cat
+    out: list[dict] = []
+    for s in get_sources():
+        if s.get("type") != "xrel" or not s.get("enabled", True):
+            continue
+        try:
+            hits = _fetch_category(s["url"], category_name, ext_info_type)
+            for h in hits:
+                h["source"] = s.get("name", "")
+                out.append(h)
+        except Exception:
+            continue
+    if lang:
+        out = [r for r in out if r["lang"].lower() == lang.lower()]
+    if quality:
+        out = [r for r in out if quality.lower() in r["quality"].lower()]
+    if q:
+        out = [r for r in out if q.lower() in r["title"].lower()]
     if sort == "title":
         out.sort(key=lambda r: r["title"].lower())
     else:
