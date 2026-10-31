@@ -855,10 +855,13 @@ async def ai_pull(request: Request):
     if not model:
         return {"ok": False, "error": "kein Modellname"}
     from . import ai
-    try:
-        return ai.pull_model(model)
-    except Exception as e:
-        return {"ok": False, "error": str(e)[:140]}
+    return ai.start_pull(model)
+
+
+@app.get("/api/ai/pull_status")
+def ai_pull_status():
+    from . import ai
+    return ai.pull_status()
 
 
 @app.get("/api/vpn/status")
