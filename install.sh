@@ -271,6 +271,36 @@ if ! grep -q "^FLARESOLVERR_URL=.\+" "$ENV_FILE" 2>/dev/null; then
 fi
 
 # ============================================================================
+# 6b. KI-Assistent (optional): ollama + passendes Modell (GPU-erkennung)
+# ============================================================================
+if [ "$UNATTENDED" = "1" ]; then
+  want_ai="n"
+else
+  echo
+  read -rp "KI-Assistent installieren (ollama + passendes Modell, ~2 GB Download)? [j/N] " want_ai
+fi
+if [[ "${want_ai:-n}" =~ ^[jJ] ]]; then
+  AI_MODEL="qwen2.5:7b"
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+    if [ -n "${VRAM_MB:-}" ]; then
+      if [ "$VRAM_MB" -lt 5000 ]; then AI_MODEL="qwen2.5:3b"; fi
+      if [ "$VRAM_MB" -ge 20000 ]; then AI_MODEL="qwen2.5:14b"; fi
+      info "Grafikkarte: ${GPU_NAME:-?} (${VRAM_MB} MB VRAM) → empfohlen: $AI_MODEL"
+    fi
+  else
+    info "Keine NVIDIA-GPU erkannt → CPU-Modell."
+    AI_MODEL="qwen2.5:1.5b"
+  fi
+  if [ "$UNATTENDED" = "0" ]; then
+    read -rp "  Modell (Enter = $AI_MODEL, oder hf.co/... für HuggingFace): " custom_model
+    [ -n "$custom_model" ] && AI_MODEL="$custom_model"
+  fi
+  bash "$INSTALL_DIR/setup_ai.sh" "$AI_MODEL"
+fi
+
+# ============================================================================
 # 7. Fertig
 # ============================================================================
 if systemctl --user is-active "$APP_NAME" >/dev/null 2>&1; then

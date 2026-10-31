@@ -23,7 +23,9 @@ SYSTEM_PROMPT = (
     "1) Rufe IMMER zuerst 'search' mit einem passenden Suchbegriff auf. "
     "2) Wähle aus dem Suchergebnis den besten Treffer (deutsche Fassung, wenn gewünscht). "
     "3) Rufe 'download' mit den EXAKTEN Werten (network, bot, pack, filename, channel) aus dem Suchergebnis auf. "
-    "Rufe 'download' NIE ohne vorherige Suche auf und erfinde NIE bot/pack/network selbst. "
+    "WICHTIG: Rufe 'download' NIE ohne echte Treffer auf. Liefert die Suche count=0 oder keine "
+    "Ergebnisse, sage ehrlich 'nichts gefunden' und rufe download NICHT auf. "
+    "Erfinde NIE bot/pack/network/filename selbst — niemals Platzhalter wie 'example', 'test' oder '12345'. "
     "Antworte am Ende auf Deutsch, knapp und sachlich."
 )
 
@@ -56,7 +58,8 @@ def _model() -> str:
 
 def llm_chat(messages: list, tools: list | None = None) -> dict:
     url = f"{_endpoint()}/v1/chat/completions"
-    body = {"model": _model(), "messages": messages, "stream": False, "temperature": 0.2}
+    body = {"model": _model(), "messages": messages, "stream": False, "temperature": 0.2,
+            "keep_alive": "30m"}
     if tools:
         body["tools"] = tools
         body["tool_choice"] = "auto"
@@ -92,6 +95,12 @@ def _run_download(args: dict) -> dict:
     pack = str(args.get("pack", "")).strip().lstrip("#")
     filename = str(args.get("filename", "")).strip()
     channel = str(args.get("channel", "")).strip()
+    # Anti-Halluzination: Platzhalter-Werte ablehnen
+    for val, name in ((bot, "bot"), (pack, "pack")):
+        v = val.lower()
+        if v in ("example", "examplebot", "test", "testbot", "bot", "12345") or \
+           v.startswith("example") or v.startswith("test"):
+            return {"ok": False, "error": f"'{name}' sieht nach Platzhalter aus — nutze echte Werte aus der Suche"}
     if not (bot and pack):
         return {"ok": False, "error": "bot/pack fehlt"}
     url = f"xdcc://{network}/{bot}/{pack}" + (f"?ch={channel}" if channel else "")
