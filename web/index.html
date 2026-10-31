@@ -393,13 +393,19 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
     </div>
     <div class="set-card">
       <h3>🤖 KI-Assistent</h3>
-      <div class="set-row"><div class="lbl">KI-Endpoint<small>ollama/llama-server, OpenAI-kompatibel</small></div><input id="set-ai-endpoint" placeholder="http://localhost:11434" onchange="saveSettings()"></div>
-      <div class="set-row"><div class="lbl">Modell<small>aktives Modell</small></div><select id="set-ai-model" style="flex:1" onchange="saveSettings()"></select></div>
+      <div class="set-row"><div class="lbl">KI-Endpoint<small>ollama/llama-server, OpenAI-kompatibel</small></div><input id="set-ai-endpoint" placeholder="http://localhost:11434"></div>
+      <div class="set-row"><div class="lbl">Modell<small>aktives Modell</small></div>
+        <div style="display:flex;gap:8px;flex:1">
+          <select id="set-ai-model" style="flex:1"></select>
+          <button class="small" onclick="aiRefreshModels()" title="Modelle aktualisieren">🔄</button>
+          <button class="small" onclick="aiApply()">Übernehmen</button>
+        </div>
+      </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <input id="ai-pull-name" placeholder="Modell laden: qwen2.5:7b · hf.co/bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M" style="flex:1">
         <button class="small" onclick="aiPullModel()">Laden</button>
-        <button class="small" onclick="aiRefreshModels()" title="Modelle aktualisieren">🔄</button>
       </div>
+      <div id="ai-pull-progress" style="display:none;margin-top:8px"></div>
       <div id="ai-detect" style="font-size:12px;margin-top:8px"></div>
       <div id="ai-gpu" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
       <div id="ai-model-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
@@ -970,27 +976,52 @@ async function aiRefreshModels(pref) {
     $('ai-model-status').style.color = d.reachable ? 'var(--green)' : 'var(--yellow)';
   } catch (e) {}
 }
+async function aiApply() {
+  saveSettings();
+  if (currentSettings.ai) {
+    currentSettings.ai.endpoint = $('set-ai-endpoint').value;
+    currentSettings.ai.model = $('set-ai-model').value;
+  }
+  await aiRefreshModels();
+  $('ai-model-status').textContent = '✓ gespeichert — Endpoint + Modell übernommen';
+  $('ai-model-status').style.color = 'var(--green)';
+}
+function fmtMB(n) { return n ? Math.round(n / 1048576) + ' MB' : ''; }
 async function aiPullModel() {
   const name = $('ai-pull-name').value.trim();
   if (!name) return;
-  $('ai-model-status').textContent = 'lade ' + name + '… (kann Minuten dauern)';
-  $('ai-model-status').style.color = 'var(--muted)';
+  const prog = $('ai-pull-progress');
+  prog.style.display = 'block';
+  prog.innerHTML = '⬇️ starte Download…';
+  let r;
   try {
-    const d = await (await fetch('/api/ai/pull', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({model: name}) })).json();
-    if (d.ok) {
-      $('ai-model-status').textContent = '✓ ' + name + ' geladen';
-      $('ai-model-status').style.color = 'var(--green)';
-      $('set-ai-model').value = name; saveSettings();
-    } else {
-      $('ai-model-status').textContent = 'Fehler: ' + (d.error || 'unbekannt');
-      $('ai-model-status').style.color = '#ff6b6b';
-    }
-    $('ai-pull-name').value = '';
-    aiRefreshModels();
+    r = await (await fetch('/api/ai/pull', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({model: name}) })).json();
   } catch (e) {
-    $('ai-model-status').textContent = 'Fehler beim Laden';
-    $('ai-model-status').style.color = '#ff6b6b';
+    prog.innerHTML = '<span style="color:#ff6b6b">✗ Server nicht erreichbar</span>';
+    return;
   }
+  if (!r.ok) { prog.innerHTML = '<span style="color:#ff6b6b">✗ ' + escAttr(r.error || 'Fehler') + '</span>'; return; }
+  $('ai-pull-name').value = '';
+  const timer = setInterval(async () => {
+    let s;
+    try { s = await (await fetch('/api/ai/pull_status')).json(); }
+    catch (e) { clearInterval(timer); return; }
+    if (s.status === 'fehler') {
+      clearInterval(timer);
+      prog.innerHTML = '<span style="color:#ff6b6b">✗ ' + escAttr(s.error || 'Fehler') + '</span>';
+      return;
+    }
+    if (s.status === 'fertig' || s.status === 'success') {
+      clearInterval(timer);
+      prog.innerHTML = '<span style="color:var(--green)">✓ ' + escAttr(name) + ' geladen — bereit zur Nutzung</span>';
+      $('set-ai-model').value = name;
+      aiApply();
+      return;
+    }
+    const pct = s.total > 0 ? Math.round(100 * s.done / s.total) : 0;
+    const bar = s.total > 0 ? `<div style="background:var(--border);border-radius:4px;height:6px;margin-top:5px"><div style="background:var(--accent);height:6px;border-radius:4px;width:${pct}%"></div></div>` : '';
+    prog.innerHTML = `⬇️ lade ${escAttr(name)}… ${pct}% (${fmtMB(s.done)} / ${fmtMB(s.total)})${bar}`;
+  }, 1000);
 }
 // ===== GPU-Erkennung =====
 async function aiLoadGpu() {
