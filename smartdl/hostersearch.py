@@ -14,6 +14,7 @@ Cloudflare: curl_cffi (chrome-Impersonation) umgeht TLS-Fingerprinting —
 funktioniert für data-load.me/funxd.site, NICHT für JS-Challenge-Seiten
 (serienfans.org) — die brauchen einen echten Browser.
 """
+import asyncio
 import re
 
 from . import store, keystore
@@ -122,6 +123,65 @@ def _extract_links(html: str, hoster_hint: str = "") -> list[str]:
     return links
 
 
+# ---- Cloudflare-Bypass: curl_cffi zuerst, bei JS-Challenge → Playwright-Chromium ----
+
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
+
+CF_MARKERS = ("just a moment", "cf-browser-verification", "challenge-platform",
+              "checking your browser", "cf-chl", "attention required")
+
+
+def _is_challenge(html: str, status: int = 200) -> bool:
+    if status in (403, 503, 429):
+        return True
+    low = (html or "").lower()
+    return any(m in low for m in CF_MARKERS)
+
+
+async def _fetch_playwright(url: str, cookies: dict | None = None) -> str:
+    from playwright.async_api import async_playwright
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(
+            headless=True, args=["--disable-blink-features=AutomationControlled"])
+        ctx = await browser.new_context(user_agent=UA, locale="en-US")
+        if cookies:
+            try:
+                await ctx.add_cookies([{"name": k, "value": v, "url": url}
+                                       for k, v in cookies.items()])
+            except Exception:
+                pass
+        page = await ctx.new_page()
+        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        # Cloudflare-Challenge läuft im Browser automatisch — warten bis gelöst
+        html = await page.content()
+        for _ in range(40):
+            if not _is_challenge(html):
+                break
+            await asyncio.sleep(1)
+            html = await page.content()
+        await browser.close()
+        return html
+
+
+def _fetch_cf(session, url: str) -> str:
+    """Robuster Fetch: curl_cffi zuerst, bei Cloudflare-Challenge → Playwright."""
+    try:
+        r = session.get(url, timeout=20)
+        if not _is_challenge(r.text, r.status_code):
+            return r.text
+    except Exception:
+        pass
+    cookies = dict(session.cookies) if hasattr(session, "cookies") else None
+    last = None
+    for _ in range(2):  # ein Retry
+        try:
+            return asyncio.run(_fetch_playwright(url, cookies=cookies))
+        except Exception as e:
+            last = e
+    raise RuntimeError(f"Cloudflare-Bypass fehlgeschlagen: {last}")
+
+
 def search(site: dict, query: str) -> list[dict]:
     """Eine Seite durchsuchen → Download-Links. Liefert [{url, title}]."""
     base = site["url"]
@@ -131,19 +191,16 @@ def search(site: dict, query: str) -> list[dict]:
 
     if stype == "xenforo":
         _login_xenforo(s, site)
-        r = s.get(f"{base}/search/search?keywords={query}", timeout=20)
-        html = r.text
+        html = _fetch_cf(s, f"{base}/search/search?keywords={query}")
     elif stype == "wordpress":
         _login_wordpress(s, site)
-        r = s.get(f"{base}/?s={query}", timeout=20)
-        html = r.text
+        html = _fetch_cf(s, f"{base}/?s={query}")
     else:  # custom: URL-Template
         tmpl = site.get("search_url", "")
         if not tmpl:
             return []
         url = tmpl.replace("{query}", query)
-        r = s.get(url, timeout=20)
-        html = r.text
+        html = _fetch_cf(s, url)
 
     for link in _extract_links(html):
         out.append({"url": link, "site": site["name"]})

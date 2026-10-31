@@ -17,6 +17,10 @@ Write-Host "[2/4] Abhängigkeiten installieren..." -ForegroundColor Yellow
 & $py -m pip install --upgrade pip -q
 & $py -m pip install -r requirements.txt pyinstaller -q
 
+# 2b. Playwright-Chromium (Cloudflare-Bypass) — als Sidecar, nicht in der EXE
+Write-Host "[2b/4] Playwright-Chromium installieren (Cloudflare-Bypass)..." -ForegroundColor Yellow
+& $py -m playwright install chromium
+
 # 3. PyInstaller-Build (gleiches spec-file wie Linux/.deb)
 Write-Host "[3/4] PyInstaller-Build..." -ForegroundColor Yellow
 & .venv-win\Scripts\pyinstaller.exe smartys-downloader.spec --noconfirm --clean
