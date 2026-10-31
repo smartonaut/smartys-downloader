@@ -378,6 +378,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
         <button class="small" onclick="aiPullModel()">Laden</button>
         <button class="small" onclick="aiRefreshModels()" title="Modelle aktualisieren">🔄</button>
       </div>
+      <div id="ai-detect" style="font-size:12px;margin-top:8px"></div>
       <div id="ai-gpu" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
       <div id="ai-model-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
     </div>
@@ -680,6 +681,7 @@ async function loadSettings() {
   $('set-ai-endpoint').value = ai.endpoint || '';
   aiRefreshModels(ai.model || '');
   aiLoadGpu();
+  aiDetect();
   const vpn = currentSettings.vpn || {};
   $('set-vpn-enabled').value = vpn.enabled || '0';
   $('set-vpn-type').value = vpn.type || 'surfshark';
@@ -936,6 +938,25 @@ async function aiLoadGpu() {
     $('ai-gpu').innerHTML = `🎮 ${escAttr(d.name)} · ${d.vram_gb > 0 ? d.vram_gb + ' GB VRAM' : 'keine GPU (CPU-only)'}` +
       (rec ? `<br><span style="color:var(--muted2)">Empfohlen für deine Karte:</span> ${rec}` : '');
   } catch (e) {}
+}
+// ===== Bestehende KI erkennen =====
+async function aiDetect() {
+  try {
+    const d = await (await fetch('/api/ai/detect')).json();
+    const ex = d.existing;
+    if (ex) {
+      $('ai-detect').innerHTML = `🔎 Läuft schon eine KI: <b>${escAttr(ex.name)}</b> auf ${escAttr(ex.url)} — ` +
+        `<button class="small" onclick="aiUseExisting('${escAttr(ex.url)}')">Nutzen</button>`;
+    } else {
+      $('ai-detect').innerHTML = `<span style="color:var(--muted2)">Keine bestehende KI gefunden — eigenen Server installieren („Modell laden").</span>`;
+    }
+  } catch (e) {}
+}
+function aiUseExisting(url) {
+  $('set-ai-endpoint').value = url;
+  saveSettings();
+  aiRefreshModels();
+  $('ai-detect').innerHTML = `<span style="color:var(--green)">✓ Nutzt bestehende KI auf ${escAttr(url)}.</span>`;
 }
 // ===== VPN =====
 function vpnTypeChanged() {

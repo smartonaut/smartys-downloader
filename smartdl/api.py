@@ -832,6 +832,12 @@ def ai_gpu():
     return gpudetect.gpu_summary()
 
 
+@app.get("/api/ai/detect")
+def ai_detect():
+    from . import ai
+    return {"existing": ai.detect_existing_llm()}
+
+
 @app.post("/api/ai/pull")
 async def ai_pull(request: Request):
     body = await request.json()
