@@ -13,6 +13,7 @@ import re
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime
 
 from . import store
 
@@ -67,13 +68,20 @@ def _parse_xrel(url: str) -> list[dict]:
         name = title
         if season is not None and episode is not None:
             name = f"{title} S{season:02d}E{episode:02d}"
+        ts = r.get("time", 0)
+        dt = datetime.fromtimestamp(ts) if ts else None
+        flags = r.get("flags", {})
+        lang = "English" if flags.get("english") else "German"
         out.append({
             "title": name,
             "group": r.get("group_name", "?"),
-            "type": r.get("video_type", "?"),
+            "quality": r.get("video_type", "?"),
             "size": f"{r.get('size', {}).get('number', '?')} {r.get('size', {}).get('unit', '?')}",
-            "lang": "DE" if not r.get("flags", {}).get("english") else "EN",
-            "time": r.get("time", 0),
+            "lang": lang,
+            "category": ext.get("type", "?"),
+            "year": dt.year if dt else 0,
+            "date": dt.strftime("%d.%m.%Y %H:%M") if dt else "",
+            "time": ts,
         })
     return out
 
@@ -90,7 +98,8 @@ def _parse_rss(url: str) -> list[dict]:
                 title = (tag.text or "").strip()
                 break
         if title:
-            out.append({"title": title, "group": "", "type": "", "size": "", "lang": "", "time": 0})
+            out.append({"title": title, "group": "", "quality": "", "size": "",
+                        "lang": "", "category": "", "year": 0, "date": "", "time": 0})
     return out
 
 
@@ -100,20 +109,26 @@ def _parse_custom(url: str) -> list[dict]:
     out = []
     for it in items:
         if isinstance(it, str):
-            out.append({"title": it, "group": "", "type": "", "size": "", "lang": "", "time": 0})
+            out.append({"title": it, "group": "", "quality": "", "size": "",
+                        "lang": "", "category": "", "year": 0, "date": "", "time": 0})
         elif isinstance(it, dict):
             out.append({
                 "title": it.get("title", it.get("name", "?")),
                 "group": it.get("group", it.get("group_name", "")),
-                "type": it.get("type", it.get("video_type", "")),
+                "quality": it.get("type", it.get("video_type", "")),
                 "size": str(it.get("size", "")),
                 "lang": it.get("lang", it.get("language", "")),
+                "category": it.get("category", it.get("type", "")),
+                "year": it.get("year", 0),
+                "date": it.get("date", ""),
                 "time": it.get("time", 0),
             })
     return out
 
 
-def fetch_releases(sources: list[dict] | None = None, limit: int = 200) -> list[dict]:
+def fetch_releases(sources: list[dict] | None = None, limit: int = 200,
+                   sort: str = "time", lang: str = "", quality: str = "",
+                   year: str = "", q: str = "") -> list[dict]:
     sources = sources if sources is not None else get_sources()
     out: list[dict] = []
     for s in sources:
@@ -132,4 +147,18 @@ def fetch_releases(sources: list[dict] | None = None, limit: int = 200) -> list[
                 out.append(h)
         except Exception:
             continue
+    # Filter
+    if lang:
+        out = [r for r in out if r["lang"].lower() == lang.lower()]
+    if quality:
+        out = [r for r in out if quality.lower() in r["quality"].lower()]
+    if year:
+        out = [r for r in out if str(r["year"]) == str(year)]
+    if q:
+        out = [r for r in out if q.lower() in r["title"].lower()]
+    # Sort: default neueste zuerst (nach Zeit), sonst Titel
+    if sort == "title":
+        out.sort(key=lambda r: r["title"].lower())
+    else:
+        out.sort(key=lambda r: r["time"], reverse=True)
     return out[:limit]
