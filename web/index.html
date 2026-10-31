@@ -228,7 +228,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   </div>
   <div class="view" id="view-releases">
     <h1 class="page">Release-Info</h1>
-    <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen (xrel.to, scenenews …).</div>
+    <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen.</div>
     <div id="rel-cats" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div class="addbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="loadReleases()">🔄 Aktualisieren</button>
@@ -344,6 +344,17 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
           <button class="small" onclick="saveNickservPw()">Speichern</button>
         </div>
       </div>
+      <div style="font-size:12px;color:var(--muted2);margin:12px 0 6px">Eigene XDCC-Netze anlegen (Host, Port, SSL, NickServ, Channels):</div>
+      <div id="irc-networks"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input id="inet-name" placeholder="Name" style="width:100px">
+        <input id="inet-host" placeholder="Host (z. B. irc.example.net)" style="flex:1;min-width:150px">
+        <input id="inet-port" placeholder="6697" style="width:65px">
+        <input id="inet-channels" placeholder="#chan1 #chan2" style="flex:1;min-width:120px">
+        <select id="inet-ssl" style="width:72px"><option value="1">SSL</option><option value="0">Plain</option></select>
+        <select id="inet-nickserv" style="width:98px"><option value="0">—</option><option value="1">NickServ</option></select>
+        <button class="small" onclick="addIrcNetwork()">Hinzufügen</button>
+      </div>
     </div>
     <div class="set-card">
       <h3>🔎 Suchmaschinen</h3>
@@ -351,7 +362,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <div id="search-engines"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <input id="se-name" placeholder="Name" style="width:120px">
-        <input id="se-url" placeholder="URL (z. B. https://sunxdcc.com)" style="flex:1">
+        <input id="se-url" placeholder="URL (https://…)" style="flex:1">
         <select id="se-type" style="width:110px"><option value="sunxdcc">sunxdcc</option><option value="huginn">huginn</option><option value="custom">custom</option></select>
         <button class="small" onclick="addSearchEngine()">Hinzufügen</button>
       </div>
@@ -362,7 +373,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <div id="hoster-sites"></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <input id="hs-name" placeholder="Name" style="width:110px">
-        <input id="hs-url" placeholder="URL (z. B. https://boerse.bz)" style="flex:1;min-width:180px">
+        <input id="hs-url" placeholder="URL (https://…)" style="flex:1;min-width:180px">
         <select id="hs-type" style="width:110px"><option value="xenforo">XenForo</option><option value="wordpress">WordPress</option><option value="custom">custom</option></select>
         <input id="hs-user" placeholder="Benutzer" style="width:120px">
         <input id="hs-pass" type="password" placeholder="Passwort" style="width:120px">
@@ -371,7 +382,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
     </div>
     <div class="set-card">
       <h3>📰 Info-Quellen</h3>
-      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">Release-Info-Quellen (xrel.to, scenenews …) — anzeigen, welche Releases online sind.</div>
+      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">Release-Info-Quellen (RSS/JSON) — anzeigen, welche Releases online sind.</div>
       <div id="info-sources"></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <input id="is-name" placeholder="Name" style="width:110px">
@@ -687,7 +698,7 @@ async function loadSettings() {
   const irc = currentSettings.irc || {};
   $('set-irc-user').value = irc.user || '';
   $('set-irc-realname').value = irc.realname || '';
-  fillIrcNetworks(irc.nicks || {});
+  renderIrcNetworks(irc.nicks || {});
   const ai = currentSettings.ai || {};
   $('set-ai-endpoint').value = ai.endpoint || '';
   aiRefreshModels(ai.model || '');
@@ -733,6 +744,43 @@ function collectIrcNicks() {
     if (el.value.trim()) o[el.dataset.net] = el.value.trim();
   });
   return o;
+}
+// ===== IRC-Netze verwalten =====
+let currentIrcNetworks = {};
+async function renderIrcNetworks(nicks) {
+  try {
+    const n = await (await fetch('/api/xdcc/networks')).json();
+    currentIrcNetworks = n.full || {};
+    const keys = Object.keys(currentIrcNetworks);
+    $('irc-networks').innerHTML = keys.map(k => {
+      const c = currentIrcNetworks[k];
+      return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <span style="width:100px;font-size:13px">${k}</span>
+        <span style="flex:1;font-size:12px;color:var(--muted2)">${c.host}:${c.port}${c.ssl ? ' · SSL' : ''}${c.nickserv ? ' · NickServ' : ''}</span>
+        <span style="font-size:11px;color:var(--muted2)">${(c.channels || []).join(' ')}</span>
+        <span class="x" style="cursor:pointer" onclick="removeIrcNetwork('${k}')">×</span>
+      </div>`;
+    }).join('') || '<div style="font-size:12px;color:var(--muted2)">keine Netze — lege dein erstes an</div>';
+    fillIrcNetworks(nicks);
+  } catch (e) {}
+}
+async function addIrcNetwork() {
+  const name = $('inet-name').value.trim();
+  const host = $('inet-host').value.trim();
+  if (!name || !host) return;
+  currentIrcNetworks[name] = {
+    host, port: parseInt($('inet-port').value.trim()) || 6697,
+    ssl: $('inet-ssl').value === '1', nickserv: $('inet-nickserv').value === '1',
+    channels: $('inet-channels').value.trim().split(/[ ,]+/).filter(Boolean)
+  };
+  await fetch('/api/xdcc/networks', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({networks: currentIrcNetworks}) });
+  $('inet-name').value=''; $('inet-host').value=''; $('inet-port').value=''; $('inet-channels').value='';
+  renderIrcNetworks();
+}
+async function removeIrcNetwork(name) {
+  delete currentIrcNetworks[name];
+  await fetch('/api/xdcc/networks', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({networks: currentIrcNetworks}) });
+  renderIrcNetworks();
 }
 async function renderSearchEngines() {
   try {

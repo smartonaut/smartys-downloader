@@ -6,11 +6,51 @@ URL-Format (source_url in der downloads-Tabelle):
 Die Ziel-Datei wird DIREKT nach DOWNLOAD_DIR geschrieben (nicht erst über
 Debrid/HTTP) — danach übernimmt der bestehende Postprocess-Pfad.
 """
+import json
 import time
 
-from . import config, keystore
+from . import config, keystore, store
 from .irc import IRCClient, IRCError
 from .dcc import receive, parse_dcc_send, DCCError
+
+
+def get_networks() -> dict:
+    """IRC-Netze aus den Einstellungen (nutzer-konfigurierbar, GUI).
+
+    Format: {name: {host, port, ssl, nickserv, channels:[...]}}
+    """
+    raw = store.get_setting("irc_networks", "")
+    if raw:
+        try:
+            nets = json.loads(raw)
+            if isinstance(nets, dict):
+                return nets
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return {}
+
+
+def save_networks(nets: dict) -> dict:
+    """Netze validieren + persistieren. Liefert die bereinigte Liste zurück."""
+    clean = {}
+    for name, cfg in (nets or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        host = str(cfg.get("host", "")).strip()
+        if not host:
+            continue
+        channels = cfg.get("channels") or []
+        if isinstance(channels, str):
+            channels = [c.strip() for c in channels.replace(",", " ").split() if c.strip()]
+        clean[str(name).strip()] = {
+            "host": host,
+            "port": int(cfg.get("port", 6697)),
+            "ssl": bool(cfg.get("ssl", True)),
+            "nickserv": bool(cfg.get("nickserv", False)),
+            "channels": [str(c).strip() for c in channels if str(c).strip()],
+        }
+    store.set_setting("irc_networks", json.dumps(clean, ensure_ascii=False))
+    return clean
 
 
 def parse_xdcc_url(url: str) -> tuple[str, str, str, str]:
@@ -27,7 +67,7 @@ def parse_xdcc_url(url: str) -> tuple[str, str, str, str]:
 
 
 def _network_cfg(network: str) -> dict:
-    cfg = config.IRC_NETWORKS.get(network)
+    cfg = get_networks().get(network)
     if not cfg:
         raise IRCError(f"unbekanntes IRC-Netzwerk: {network}")
     return cfg
