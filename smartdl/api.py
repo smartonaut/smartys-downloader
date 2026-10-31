@@ -317,6 +317,13 @@ def get_settings():
             "endpoint": store.get_setting("ai_endpoint", "http://localhost:11434"),
             "model": store.get_setting("ai_model", "qwen2.5:7b"),
         },
+        "vpn": {
+            "enabled": store.get_setting("vpn_enabled", "0"),
+            "type": store.get_setting("vpn_type", "surfshark"),
+            "cli": store.get_setting("vpn_cli", "surfshark-vpn"),
+            "ovpn_config": store.get_setting("vpn_ovpn_config", ""),
+            "ovpn_auth": store.get_setting("vpn_ovpn_auth", ""),
+        },
         "reconnect": {
             "configured": reconnect.is_configured(),
             "script": store.get_setting("reconnect_script", config.RECONNECT_SCRIPT),
@@ -336,7 +343,8 @@ async def save_settings(request: Request):
                 "segments", "aria2_rpc_port", "reconnect_script", "reconnect_url",
                 "reconnect_fritz_host", "reconnect_fritz_user", "reconnect_fritz_pass",
                 "irc_nick", "irc_user", "irc_realname", "irc_huginn_url",
-                "ai_endpoint", "ai_model"):
+                "ai_endpoint", "ai_model",
+                "vpn_enabled", "vpn_type", "vpn_cli", "vpn_ovpn_config", "vpn_ovpn_auth"):
         if key in body:
             store.set_setting(key, str(body[key]))
     # NickServ-Passwort → NIE plaintext, sondern verschlüsselt im Keystore.
@@ -810,6 +818,24 @@ async def ai_chat(request: Request):
         return {"ok": True, **result}
     except Exception as e:
         return {"ok": False, "error": f"KI nicht erreichbar: {str(e)[:140]}"}
+
+
+@app.get("/api/vpn/status")
+def vpn_status():
+    from . import vpn
+    return vpn.status()
+
+
+@app.post("/api/vpn/connect")
+def vpn_connect():
+    from . import vpn
+    return vpn.connect()
+
+
+@app.post("/api/vpn/disconnect")
+def vpn_disconnect():
+    from . import vpn
+    return vpn.disconnect()
 
 
 # ---------- Web-GUI ----------
