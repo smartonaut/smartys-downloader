@@ -254,6 +254,19 @@ KATEGORY_LABELS = {"movie": "Filme", "series": "Serien", "software": "Software",
                    "other": "Sonstiges"}
 
 
+def _irc_nicks() -> dict:
+    """Pro-Netz-Nicks aus den Einstellungen (JSON-Dict)."""
+    raw = store.get_setting("irc_nicks", "")
+    if raw:
+        try:
+            d = json.loads(raw)
+            if isinstance(d, dict):
+                return {str(k): str(v) for k, v in d.items()}
+        except Exception:
+            pass
+    return {}
+
+
 def _category_targets() -> dict:
     from .config import CATEGORY_TARGETS_ENV
     raw = store.get_setting("category_targets", "")
@@ -298,6 +311,11 @@ def get_settings():
             "user": store.get_setting("irc_user", config.IRC_USER),
             "realname": store.get_setting("irc_realname", config.IRC_REALNAME),
             "huginn_url": store.get_setting("irc_huginn_url", config.HUGINN_URL),
+            "nicks": _irc_nicks(),
+        },
+        "ai": {
+            "endpoint": store.get_setting("ai_endpoint", "http://localhost:11434"),
+            "model": store.get_setting("ai_model", "qwen2.5:7b"),
         },
         "reconnect": {
             "configured": reconnect.is_configured(),
@@ -317,7 +335,8 @@ async def save_settings(request: Request):
     for key in ("max_parallel", "speed_limit_kb", "debrid_order", "clipboard_watch",
                 "segments", "aria2_rpc_port", "reconnect_script", "reconnect_url",
                 "reconnect_fritz_host", "reconnect_fritz_user", "reconnect_fritz_pass",
-                "irc_nick", "irc_user", "irc_realname", "irc_huginn_url"):
+                "irc_nick", "irc_user", "irc_realname", "irc_huginn_url",
+                "ai_endpoint", "ai_model"):
         if key in body:
             store.set_setting(key, str(body[key]))
     # NickServ-Passwort → NIE plaintext, sondern verschlüsselt im Keystore.
@@ -337,6 +356,10 @@ async def save_settings(request: Request):
         store.set_setting("category_targets", json.dumps(clean))
         # legacy-feld mitschreiben (kompatibilitaet)
         store.set_setting("jellyfin_target", clean.get("movie", ""))
+    if "irc_nicks" in body:
+        nicks = {str(k): str(v) for k, v in body["irc_nicks"].items()
+                 if str(v).strip()}
+        store.set_setting("irc_nicks", json.dumps(nicks))
     # sofort anwenden:
     from . import config
     if "max_parallel" in body:
@@ -681,42 +704,44 @@ def status():
 @app.get("/api/xdcc/networks")
 def xdcc_networks():
     from .config import IRC_NETWORKS
-    from .xdcc import _irc_user_settings
-    nick = _irc_user_settings()["nick"]
-    return {"nick": nick,
-            "networks": {k: {"host": v["host"], "nickserv": v.get("nickserv", False)}
-                         for k, v in IRC_NETWORKS.items()}}
+    return {"networks": {k: {"host": v["host"], "nickserv": v.get("nickserv", False)}
+                         for k, v in IRC_NETWORKS.items()},
+            "nicks": _irc_nicks()}
 
 
 @app.get("/api/xdcc/search")
 def xdcc_search(q: str = "", network: str = "", channel: str = "",
                 bot_name: str = "", limit: int = 100):
-    """Suche im Huginn-Index (Proxy — der Browser darf :8470 nicht direkt
-    ansprechen, CORS)."""
-    import urllib.request
-    import urllib.parse
-    from . import config
-    HUGINN_URL = store.get_setting("irc_huginn_url", config.HUGINN_URL) or config.HUGINN_URL
-    if not HUGINN_URL:
+    """Suche über alle konfigurierten Suchmaschinen (freie + eigene)."""
+    from . import search, config
+    engines = search.get_engines()
+    # Legacy-Huginn-URL (falls konfiguriert) als zusätzliche Maschine anhängen
+    huginn = store.get_setting("irc_huginn_url", config.HUGINN_URL) or config.HUGINN_URL
+    if huginn and not any(e.get("url", "").rstrip("/") == huginn.rstrip("/") for e in engines):
+        engines = list(engines) + [{"name": "huginn", "url": huginn, "type": "huginn", "enabled": True}]
+    if not engines:
         return {"results": [], "count": 0,
-                "error": "kein Suchindex konfiguriert (Einstellungen → IRC/XDCC → Huginn-URL)"}
-    params = {}
-    if q:
-        params["q"] = q
-    if network:
-        params["network"] = network
-    if channel:
-        params["channel"] = channel
-    if bot_name:
-        params["bot_name"] = bot_name
-    params["limit"] = min(limit, 500)
-    url = f"{HUGINN_URL}/api/search?" + urllib.parse.urlencode(params)
+                "error": "keine Suchmaschine konfiguriert (Einstellungen → Suchmaschinen)"}
     try:
-        with urllib.request.urlopen(url, timeout=8) as r:
-            import json as _json
-            return _json.loads(r.read().decode("utf-8", "replace"))
+        results = search.search_all(q, engines, network=network, channel=channel,
+                                    bot=bot_name, limit=min(limit, 500))
+        return {"results": results, "count": len(results)}
     except Exception as e:
         return {"results": [], "count": 0, "error": str(e)[:120]}
+
+
+@app.get("/api/search/engines")
+def get_search_engines():
+    from . import search
+    return {"engines": search.get_engines()}
+
+
+@app.post("/api/search/engines")
+async def save_search_engines(request: Request):
+    body = await request.json()
+    from . import search
+    engines = search.save_engines(body.get("engines", []))
+    return {"ok": True, "engines": engines}
 
 
 @app.get("/api/xdcc/status")
@@ -769,6 +794,22 @@ async def xdcc_download(request: Request):
                        status="queued", size=size)
     store.update_package(pid, status="downloading")
     return {"ok": True, "package_id": pid, "name": name}
+
+
+@app.post("/api/ai/chat")
+async def ai_chat(request: Request):
+    """KI-Assistent: {message, history} → autonome Suche+Download, Endantwort."""
+    body = await request.json()
+    message = str(body.get("message", "")).strip()
+    history = body.get("history") or []
+    if not message:
+        return {"ok": False, "error": "keine Nachricht"}
+    from . import ai
+    try:
+        result = ai.run_agent(message, history=history)
+        return {"ok": True, **result}
+    except Exception as e:
+        return {"ok": False, "error": f"KI nicht erreichbar: {str(e)[:140]}"}
 
 
 # ---------- Web-GUI ----------
