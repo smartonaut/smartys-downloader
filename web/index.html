@@ -332,6 +332,19 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       </div>
     </div>
     <div class="set-card">
+      <h3>🌐 Hoster-Seiten</h3>
+      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">1-Click-Hoster-/Foren-Seiten mit Login — die Suche läuft über alle. Passwort wird verschlüsselt gespeichert.</div>
+      <div id="hoster-sites"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input id="hs-name" placeholder="Name" style="width:110px">
+        <input id="hs-url" placeholder="URL (z. B. https://boerse.bz)" style="flex:1;min-width:180px">
+        <select id="hs-type" style="width:110px"><option value="xenforo">XenForo</option><option value="wordpress">WordPress</option><option value="custom">custom</option></select>
+        <input id="hs-user" placeholder="Benutzer" style="width:120px">
+        <input id="hs-pass" type="password" placeholder="Passwort" style="width:120px">
+        <button class="small" onclick="addHosterSite()">Hinzufügen</button>
+      </div>
+    </div>
+    <div class="set-card">
       <h3>🤖 KI-Assistent</h3>
       <div class="set-row"><div class="lbl">KI-Endpoint<small>ollama/llama-server, OpenAI-kompatibel</small></div><input id="set-ai-endpoint" placeholder="http://localhost:11434" onchange="saveSettings()"></div>
       <div class="set-row"><div class="lbl">Modell<small>z. B. qwen2.5:7b</small></div><input id="set-ai-model" placeholder="qwen2.5:7b" onchange="saveSettings()"></div>
@@ -589,6 +602,7 @@ async function loadAccounts() {
 
 let currentSettings = {};
 let currentEngines = [];
+let currentHosterSites = [];
 // ===== Kategorie-Ziele =====
 function renderCatTargets(cats, targets) {
   $('cat-targets').innerHTML = cats.map(c => `
@@ -638,6 +652,7 @@ async function loadSettings() {
   vpnTypeChanged();
   vpnStatus();
   renderSearchEngines();
+  renderHosterSites();
   renderCatTargets(currentSettings.categories || [], currentSettings.category_targets || {});
   $('set-debrid-order').placeholder = currentSettings.debrid_services.join(',');
   const pwr = await fetch('/api/passwords');
@@ -696,6 +711,41 @@ async function addSearchEngine() {
   await persistEngines();
   $('se-name').value = ''; $('se-url').value = '';
   renderSearchEngines();
+}
+// ===== Hoster-Seiten =====
+async function renderHosterSites() {
+  try {
+    const r = await (await fetch('/api/hoster/sites')).json();
+    currentHosterSites = r.sites || [];
+    $('hoster-sites').innerHTML = currentHosterSites.map((s, i) =>
+      `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <span style="width:100px;font-size:13px">${s.name}</span>
+        <span style="flex:1;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.url}</span>
+        <span style="width:80px;font-size:11px;color:var(--muted2)">${s.type}</span>
+        <span style="width:100px;font-size:11px;color:var(--muted2)">${s.username||'—'}</span>
+        <span class="x" style="cursor:pointer" onclick="removeHosterSite(${i})">×</span>
+      </div>`).join('') || '<div style="font-size:12px;color:var(--muted2)">keine Seiten</div>';
+  } catch (e) {}
+}
+async function persistHosterSites(sites) {
+  await fetch('/api/hoster/sites', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({sites}) });
+}
+async function addHosterSite() {
+  const name = $('hs-name').value.trim() || 'site';
+  const url = $('hs-url').value.trim();
+  if (!url) return;
+  const site = { name, url, type: $('hs-type').value, username: $('hs-user').value.trim() };
+  const pw = $('hs-pass').value;
+  if (pw) site.password = pw;
+  currentHosterSites.push(site);
+  await persistHosterSites(currentHosterSites);
+  $('hs-name').value=''; $('hs-url').value=''; $('hs-user').value=''; $('hs-pass').value='';
+  renderHosterSites();
+}
+async function removeHosterSite(i) {
+  currentHosterSites.splice(i, 1);
+  await persistHosterSites(currentHosterSites);
+  renderHosterSites();
 }
 async function saveNickservPw() {
   const pw = $('set-irc-nspw').value;
