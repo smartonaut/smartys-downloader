@@ -140,6 +140,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   <div class="logo"><div class="mark">⬇</div>Smartys Downloader</div>
   <div class="nav-btn active" data-view="downloads"><span class="ico">📦</span>Downloads</div>
   <div class="nav-btn" data-view="torrent"><span class="ico">🧲</span>Torrent</div>
+  <div class="nav-btn" data-view="xdcc"><span class="ico">💬</span>XDCC</div>
   <div class="nav-btn" data-view="schedule"><span class="ico">🕒</span>Zeitplan</div>
   <div class="nav-btn" data-view="accounts"><span class="ico">🔑</span>Accounts</div>
   <div class="nav-btn" data-view="settings"><span class="ico">⚙️</span>Einstellungen</div>
@@ -189,6 +190,19 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       </div>
     </div>
     <div id="torrent-list"></div>
+  </div>
+  <div class="view" id="view-xdcc">
+    <h1 class="page">XDCC</h1>
+    <div class="page-sub">IRC-Suche über den Huginn-Index · Download direkt per DCC-Transfer</div>
+    <div class="addbar">
+      <div class="addrow" style="margin-top:0">
+        <input id="xdcc-q" placeholder="Suchbegriff — Titel, Staffel, Release-Name…" style="flex:2" onkeydown="if(event.key==='Enter')xdccSearch()">
+        <select id="xdcc-cat" style="width:130px"></select>
+        <button onclick="xdccSearch()">🔍 Suchen</button>
+      </div>
+      <div id="xdcc-status" style="margin-top:10px;font-size:12.5px;color:var(--muted)"></div>
+    </div>
+    <div id="xdcc-results"></div>
   </div>
   <div class="view" id="view-schedule">
     <h1 class="page">Zeitplan</h1>
@@ -284,6 +298,20 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <div class="set-row"><div class="lbl">Clipboard-Watcher<small>Links aus der Zwischenablage vorschlagen</small></div><select id="set-clipboard" onchange="saveSettings()"><option value="1">An</option><option value="0">Aus</option></select></div>
     </div>
     <div class="set-card">
+      <h3>💬 IRC / XDCC</h3>
+      <div class="set-row"><div class="lbl">IRC-Nick<small>Dein Nick auf dem IRC-Netz</small></div><input id="set-irc-nick" placeholder="meinNick" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">User<small>IRC-Username</small></div><input id="set-irc-user" placeholder="user" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Realname<small>Anzeigename</small></div><input id="set-irc-realname" placeholder="Realname" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Huginn-URL<small>Suchindex, z. B. http://host:8470</small></div><input id="set-irc-huginn" placeholder="http://…" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">NickServ-Passwort<small>pro Netz, verschlüsselt gespeichert</small></div>
+        <div style="display:flex;gap:8px">
+          <select id="set-irc-net" style="width:130px"></select>
+          <input id="set-irc-nspw" type="password" placeholder="NickServ-Passwort…" style="width:160px">
+          <button class="small" onclick="saveNickservPw()">Speichern</button>
+        </div>
+      </div>
+    </div>
+    <div class="set-card">
       <h3>🎬 Nachbearbeitung</h3>
       <div style="margin:14px 0 4px;font-size:13px;color:var(--muted2);font-weight:600">📁 Nachbearbeitung — Download-Ziele je Kategorie (rsync)</div><div id="cat-targets"></div><div style="font-size:12px;color:var(--muted2);margin-top:6px">Leer = nur entpacken, nichts kopieren. Formate: <code>user@host:/pfad/</code> oder <code>/lokaler/pfad/</code></div>
     </div>
@@ -336,6 +364,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (btn.dataset.view === 'settings') loadSettings();
     if (btn.dataset.view === 'torrent') loadTorrent();
     if (btn.dataset.view === 'schedule') loadSchedule();
+    if (btn.dataset.view === 'xdcc') { loadXdcc(); fillXdcCat(); }
   });
 });
 
@@ -556,6 +585,12 @@ async function loadSettings() {
   $('set-rc-user').value = rc.fritz_user || '';
   $('set-rc-pass').value = rc.fritz_pass || '';
   $('set-rc-url').value = rc.url || '';
+  const irc = currentSettings.irc || {};
+  $('set-irc-nick').value = irc.nick || '';
+  $('set-irc-user').value = irc.user || '';
+  $('set-irc-realname').value = irc.realname || '';
+  $('set-irc-huginn').value = irc.huginn_url || '';
+  fillIrcNetworks();
   renderCatTargets(currentSettings.categories || [], currentSettings.category_targets || {});
   $('set-debrid-order').placeholder = currentSettings.debrid_services.join(',');
   const pwr = await fetch('/api/passwords');
@@ -567,8 +602,23 @@ async function loadSettings() {
   load2FAState();
 }
 async function saveSettings() {
-  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, category_targets: collectCatTargets() };
+  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, irc_nick: $('set-irc-nick').value, irc_user: $('set-irc-user').value, irc_realname: $('set-irc-realname').value, irc_huginn_url: $('set-irc-huginn').value, category_targets: collectCatTargets() };
   await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+}
+async function fillIrcNetworks() {
+  try {
+    const n = await (await fetch('/api/xdcc/networks')).json();
+    $('set-irc-net').innerHTML = Object.keys(n.networks || {}).map(k =>
+      `<option value="${k}">${k}</option>`).join('');
+  } catch (e) {}
+}
+async function saveNickservPw() {
+  const pw = $('set-irc-nspw').value;
+  const net = $('set-irc-net').value;
+  if (!net) return;
+  await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ irc_nickserv_network: net, irc_nickserv_password: pw }) });
+  $('set-irc-nspw').value = '';
 }
 async function addPassword() {
   const pw = $('new-pw').value.trim();
@@ -639,6 +689,74 @@ async function addTorrentFile() {
   $('torrent-msg').textContent = j.ok ? '✓ gestartet' : '✗ ' + (j.error || 'Fehler');
   $('torrent-msg').style.color = j.ok ? 'var(--green)' : 'var(--red)';
   loadTorrent();
+}
+
+// ===== XDCC =====
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let xdccResults = [];
+async function fillXdcCat() {
+  try {
+    const s = await (await fetch('/api/settings')).json();
+    $('xdcc-cat').innerHTML = (s.categories || []).map(c =>
+      `<option value="${c.key}" ${c.key === 'movie' ? 'selected' : ''}>${c.label}</option>`).join('');
+  } catch (e) {}
+}
+async function loadXdcc() {
+  const el = $('xdcc-status');
+  try {
+    const r = await fetch('/api/xdcc/status');
+    const j = await r.json();
+    if (j.reachable && j.stats) {
+      el.innerHTML = `<span style="color:var(--green)">● Index online</span> · ${j.stats.total_packs} Packs · ${j.stats.bots} Bots · ${j.stats.networks} Netze`;
+    } else {
+      el.innerHTML = `<span style="color:var(--red)">● Index nicht erreichbar</span>${j.error ? ' — ' + esc(j.error) : ''}`;
+    }
+  } catch (e) {
+    el.innerHTML = '<span style="color:var(--red)">● Index nicht erreichbar</span>';
+  }
+}
+async function xdccSearch() {
+  const q = $('xdcc-q').value.trim();
+  if (!q) { loadXdcc(); return; }
+  $('xdcc-results').innerHTML = '<div style="color:var(--muted);padding:14px">Suche…</div>';
+  const r = await fetch('/api/xdcc/search?q=' + encodeURIComponent(q));
+  const j = await r.json();
+  if (j.error) {
+    $('xdcc-results').innerHTML = '<div style="color:var(--red);padding:14px">✗ ' + esc(j.error) + '</div>';
+    return;
+  }
+  xdccResults = j.results || [];
+  if (!xdccResults.length) {
+    $('xdcc-results').innerHTML = '<div style="color:var(--muted2);padding:20px;text-align:center">Keine Treffer für „' + esc(q) + '".</div>';
+    return;
+  }
+  $('xdcc-results').innerHTML = xdccResults.map((x, i) => `
+    <div class="dlrow" style="padding:13px 18px;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.filename)}</div>
+        <div style="font-size:11.5px;color:var(--muted2);margin-top:2px">${esc(x.network)} · ${esc(x.channel)} · ${esc(x.bot_name)} · #${esc(x.pack_id)}${x.size ? ' · ' + esc(x.size) : ''}</div>
+      </div>
+      <button class="small" onclick="xdccDownloadIdx(${i})">⬇ Laden</button>
+    </div>`).join('');
+}
+async function xdccDownloadIdx(i) {
+  const x = xdccResults[i];
+  if (!x) return;
+  xdccDownload(x.network, x.bot_name, x.pack_id, x.filename, x.size, x.channel);
+}
+async function xdccDownload(network, bot, pack, filename, size, channel) {
+  const category = $('xdcc-cat').value || 'movie';
+  const r = await fetch('/api/xdcc/download', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({network, bot, pack, filename, size, channel, category})
+  });
+  const j = await r.json();
+  if (j.ok) {
+    alert('✓ XDCC-Download gestartet: ' + j.name);
+    loadPackages();
+  } else {
+    alert('✗ ' + (j.error || 'Fehler'));
+  }
 }
 
 // ===== Zeitplan =====

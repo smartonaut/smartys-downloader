@@ -83,13 +83,13 @@ def add_package(name: str, password: str | None = None,
 
 
 def add_download(package_id: int, source_url: str, filename: str = "",
-                 hoster: str = "", status: str = "new") -> int:
+                 hoster: str = "", status: str = "new", size: int = 0) -> int:
     conn = _db()
     with _lock:
         cur = conn.execute(
-            "INSERT OR IGNORE INTO downloads (package_id, source_url, filename, hoster, status, created_at) "
-            "VALUES (?,?,?,?,?,?)",
-            (package_id, source_url, filename, hoster, status, time.time()))
+            "INSERT OR IGNORE INTO downloads (package_id, source_url, filename, hoster, status, size, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (package_id, source_url, filename, hoster, status, size, time.time()))
         conn.commit()
         return cur.lastrowid or 0
 
