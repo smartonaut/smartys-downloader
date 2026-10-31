@@ -38,15 +38,27 @@ def nickserv_password(network: str) -> str:
     return keystore.get_service_key(f"irc_nickserv_{network.lower()}") or ""
 
 
-def _irc_user_settings() -> dict:
+def _irc_user_settings(network: str = "") -> dict:
     """Effektive IRC-Einstellungen des Nutzers: Settings-Tabelle > env/config.
 
-    Enthält KEINE Secrets (NickServ-Passwort liegt im Keystore, siehe oben).
-    Jeder Nutzer trägt seine eigenen Werte über Einstellungen → IRC/XDCC ein.
+    Der Nick ist PRO NETZ konfigurierbar (irc_nicks als JSON-Dict), mit dem
+    globalen irc_nick als Fallback. Enthält KEINE Secrets (NickServ-Passwort
+    liegt im Keystore).
     """
     from . import store
+    import json as _json
+    nicks: dict = {}
+    raw = store.get_setting("irc_nicks", "")
+    if raw:
+        try:
+            nicks = _json.loads(raw)
+        except (_json.JSONDecodeError, ValueError):
+            nicks = {}
+    nick = nicks.get(network, "") if network else ""
+    if not nick:
+        nick = store.get_setting("irc_nick", config.IRC_NICK)
     return {
-        "nick": store.get_setting("irc_nick", config.IRC_NICK),
+        "nick": nick,
         "user": store.get_setting("irc_user", config.IRC_USER),
         "realname": store.get_setting("irc_realname", config.IRC_REALNAME),
     }
@@ -87,7 +99,7 @@ def fetch(network: str, bot: str, pack: str, dest: str,
           progress_cb=None, stop_event=None) -> dict:
     """Einen XDCC-Pack ziehen. Blockierend. Liefert {ok, filename, size}."""
     cfg = _network_cfg(network)
-    uset = _irc_user_settings()
+    uset = _irc_user_settings(network)
     base_nick = uset["nick"] or "user"
 
     # EINDEUTIGER Nick pro Download: parallele Downloads kollidieren sonst

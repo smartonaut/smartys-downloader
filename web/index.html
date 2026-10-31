@@ -141,6 +141,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   <div class="nav-btn active" data-view="downloads"><span class="ico">📦</span>Downloads</div>
   <div class="nav-btn" data-view="torrent"><span class="ico">🧲</span>Torrent</div>
   <div class="nav-btn" data-view="xdcc"><span class="ico">💬</span>XDCC</div>
+  <div class="nav-btn" data-view="ai"><span class="ico">🤖</span>KI-Assistent</div>
   <div class="nav-btn" data-view="schedule"><span class="ico">🕒</span>Zeitplan</div>
   <div class="nav-btn" data-view="accounts"><span class="ico">🔑</span>Accounts</div>
   <div class="nav-btn" data-view="settings"><span class="ico">⚙️</span>Einstellungen</div>
@@ -203,6 +204,15 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <div id="xdcc-status" style="margin-top:10px;font-size:12.5px;color:var(--muted)"></div>
     </div>
     <div id="xdcc-results"></div>
+  </div>
+  <div class="view" id="view-ai">
+    <h1 class="page">KI-Assistent</h1>
+    <div class="page-sub">Sag einfach, was du willst — die KI sucht über die XDCC-Suchmaschinen und lädt es herunter.</div>
+    <div id="ai-chat" style="min-height:300px;max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:14px"></div>
+    <div class="addbar" style="display:flex;gap:8px;margin-top:12px">
+      <input id="ai-input" placeholder="z. B. „lade Verity – Dunkle Geheimnisse (deutsch)"" style="flex:1" onkeydown="if(event.key==='Enter')aiSend()">
+      <button onclick="aiSend()">Senden</button>
+    </div>
   </div>
   <div class="view" id="view-schedule">
     <h1 class="page">Zeitplan</h1>
@@ -299,10 +309,9 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
     </div>
     <div class="set-card">
       <h3>💬 IRC / XDCC</h3>
-      <div class="set-row"><div class="lbl">IRC-Nick<small>Dein Nick auf dem IRC-Netz</small></div><input id="set-irc-nick" placeholder="meinNick" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Nick pro Netz<small>Dein Bot-Name je IRC-Netz</small></div><div id="irc-nicks" style="flex:1"></div></div>
       <div class="set-row"><div class="lbl">User<small>IRC-Username</small></div><input id="set-irc-user" placeholder="user" onchange="saveSettings()"></div>
       <div class="set-row"><div class="lbl">Realname<small>Anzeigename</small></div><input id="set-irc-realname" placeholder="Realname" onchange="saveSettings()"></div>
-      <div class="set-row"><div class="lbl">Huginn-URL<small>Suchindex, z. B. http://host:8470</small></div><input id="set-irc-huginn" placeholder="http://…" onchange="saveSettings()"></div>
       <div class="set-row"><div class="lbl">NickServ-Passwort<small>pro Netz, verschlüsselt gespeichert</small></div>
         <div style="display:flex;gap:8px">
           <select id="set-irc-net" style="width:130px"></select>
@@ -310,6 +319,22 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
           <button class="small" onclick="saveNickservPw()">Speichern</button>
         </div>
       </div>
+    </div>
+    <div class="set-card">
+      <h3>🔎 Suchmaschinen</h3>
+      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">Freie XDCC-Suchmaschinen + eigene. Die Suche läuft über alle aktivierten.</div>
+      <div id="search-engines"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="se-name" placeholder="Name" style="width:120px">
+        <input id="se-url" placeholder="URL (z. B. https://sunxdcc.com)" style="flex:1">
+        <select id="se-type" style="width:110px"><option value="sunxdcc">sunxdcc</option><option value="huginn">huginn</option><option value="custom">custom</option></select>
+        <button class="small" onclick="addSearchEngine()">Hinzufügen</button>
+      </div>
+    </div>
+    <div class="set-card">
+      <h3>🤖 KI-Assistent</h3>
+      <div class="set-row"><div class="lbl">KI-Endpoint<small>ollama/llama-server, OpenAI-kompatibel</small></div><input id="set-ai-endpoint" placeholder="http://localhost:11434" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Modell<small>z. B. qwen2.5:7b</small></div><input id="set-ai-model" placeholder="qwen2.5:7b" onchange="saveSettings()"></div>
     </div>
     <div class="set-card">
       <h3>🎬 Nachbearbeitung</h3>
@@ -551,6 +576,7 @@ async function loadAccounts() {
 }
 
 let currentSettings = {};
+let currentEngines = [];
 // ===== Kategorie-Ziele =====
 function renderCatTargets(cats, targets) {
   $('cat-targets').innerHTML = cats.map(c => `
@@ -586,11 +612,13 @@ async function loadSettings() {
   $('set-rc-pass').value = rc.fritz_pass || '';
   $('set-rc-url').value = rc.url || '';
   const irc = currentSettings.irc || {};
-  $('set-irc-nick').value = irc.nick || '';
   $('set-irc-user').value = irc.user || '';
   $('set-irc-realname').value = irc.realname || '';
-  $('set-irc-huginn').value = irc.huginn_url || '';
-  fillIrcNetworks();
+  fillIrcNetworks(irc.nicks || {});
+  const ai = currentSettings.ai || {};
+  $('set-ai-endpoint').value = ai.endpoint || '';
+  $('set-ai-model').value = ai.model || '';
+  renderSearchEngines();
   renderCatTargets(currentSettings.categories || [], currentSettings.category_targets || {});
   $('set-debrid-order').placeholder = currentSettings.debrid_services.join(',');
   const pwr = await fetch('/api/passwords');
@@ -602,15 +630,53 @@ async function loadSettings() {
   load2FAState();
 }
 async function saveSettings() {
-  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, irc_nick: $('set-irc-nick').value, irc_user: $('set-irc-user').value, irc_realname: $('set-irc-realname').value, irc_huginn_url: $('set-irc-huginn').value, category_targets: collectCatTargets() };
+  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, irc_user: $('set-irc-user').value, irc_realname: $('set-irc-realname').value, irc_nicks: collectIrcNicks(), ai_endpoint: $('set-ai-endpoint').value, ai_model: $('set-ai-model').value, category_targets: collectCatTargets() };
   await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
 }
-async function fillIrcNetworks() {
+async function fillIrcNetworks(nicks) {
   try {
     const n = await (await fetch('/api/xdcc/networks')).json();
-    $('set-irc-net').innerHTML = Object.keys(n.networks || {}).map(k =>
-      `<option value="${k}">${k}</option>`).join('');
+    nicks = nicks || n.nicks || {};
+    const nets = Object.keys(n.networks || {});
+    $('set-irc-net').innerHTML = nets.map(k => `<option value="${k}">${k}</option>`).join('');
+    $('irc-nicks').innerHTML = nets.map(k =>
+      `<div style="display:flex;align-items:center;gap:6px;margin:3px 0"><span style="width:90px;font-size:12px;color:var(--muted2)">${k}</span><input data-net="${k}" placeholder="Nick für ${k}" value="${(nicks[k]||'').replace(/"/g,'&quot;')}" onchange="saveSettings()" style="flex:1"></div>`).join('');
   } catch (e) {}
+}
+function collectIrcNicks() {
+  const o = {};
+  document.querySelectorAll('#irc-nicks input[data-net]').forEach(el => {
+    if (el.value.trim()) o[el.dataset.net] = el.value.trim();
+  });
+  return o;
+}
+async function renderSearchEngines() {
+  try {
+    const r = await (await fetch('/api/search/engines')).json();
+    currentEngines = r.engines || [];
+    $('search-engines').innerHTML = currentEngines.map((e, i) =>
+      `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <input type="checkbox" ${e.enabled ? 'checked' : ''} onchange="toggleEngine(${i},this.checked)" title="aktiviert">
+        <span style="width:90px;font-size:13px">${e.name}</span>
+        <span style="flex:1;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.url}</span>
+        <span style="width:70px;font-size:11px;color:var(--muted2)">${e.type}</span>
+        <span class="x" style="cursor:pointer" onclick="removeEngine(${i})">×</span>
+      </div>`).join('') || '<div style="font-size:12px;color:var(--muted2)">keine Suchmaschinen</div>';
+  } catch (e) {}
+}
+async function persistEngines() {
+  await fetch('/api/search/engines', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({engines: currentEngines}) });
+}
+async function toggleEngine(i, on) { currentEngines[i].enabled = on; await persistEngines(); }
+async function removeEngine(i) { currentEngines.splice(i, 1); await persistEngines(); renderSearchEngines(); }
+async function addSearchEngine() {
+  const name = $('se-name').value.trim() || 'custom';
+  const url = $('se-url').value.trim();
+  if (!url) return;
+  currentEngines.push({ name, url, type: $('se-type').value, enabled: true });
+  await persistEngines();
+  $('se-name').value = ''; $('se-url').value = '';
+  renderSearchEngines();
 }
 async function saveNickservPw() {
   const pw = $('set-irc-nspw').value;
@@ -619,6 +685,34 @@ async function saveNickservPw() {
   await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ irc_nickserv_network: net, irc_nickserv_password: pw }) });
   $('set-irc-nspw').value = '';
+}
+// ===== KI-Assistent =====
+let aiHistory = [];
+function aiAdd(role, text) {
+  const el = document.createElement('div');
+  el.style.cssText = `padding:10px 12px;border-radius:10px;max-width:85%;white-space:pre-wrap;word-break:break-word;${role==='user' ? 'align-self:flex-end;background:linear-gradient(135deg,rgba(91,140,255,.18),rgba(124,91,255,.12));' : 'align-self:flex-start;background:var(--card);border:1px solid var(--border);'}`;
+  el.textContent = text;
+  $('ai-chat').appendChild(el);
+  $('ai-chat').scrollTop = $('ai-chat').scrollHeight;
+  return el;
+}
+async function aiSend() {
+  const msg = $('ai-input').value.trim();
+  if (!msg) return;
+  aiAdd('user', msg);
+  $('ai-input').value = '';
+  const bubble = aiAdd('assistant', '…');
+  try {
+    const r = await fetch('/api/ai/chat', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({message: msg, history: aiHistory}) });
+    const d = await r.json();
+    bubble.textContent = d.ok ? d.reply : 'Fehler: ' + (d.error || '');
+    aiHistory.push({role:'user', content: msg});
+    aiHistory.push({role:'assistant', content: d.ok ? d.reply : ''});
+    if (aiHistory.length > 24) aiHistory = aiHistory.slice(-24);
+    if (d.ok && d.tool_calls && d.tool_calls.length) refresh();
+  } catch (e) {
+    bubble.textContent = 'KI nicht erreichbar — läuft der lokale LLM-Server? (Einstellungen → KI-Assistent)';
+  }
 }
 async function addPassword() {
   const pw = $('new-pw').value.trim();
