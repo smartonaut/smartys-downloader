@@ -874,6 +874,29 @@ async def hoster_search(request: Request):
     return {"results": results, "count": len(results), "errors": errors}
 
 
+@app.get("/api/releases/sources")
+def get_info_sources():
+    from . import releaseinfo
+    return {"sources": releaseinfo.get_sources()}
+
+
+@app.post("/api/releases/sources")
+async def save_info_sources(request: Request):
+    body = await request.json()
+    from . import releaseinfo
+    sources = releaseinfo.save_sources(body.get("sources", []))
+    return {"ok": True, "sources": sources}
+
+
+@app.get("/api/releases")
+def get_releases():
+    from . import releaseinfo
+    try:
+        return {"ok": True, "releases": releaseinfo.fetch_releases()}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:120]}
+
+
 # ---------- Web-GUI ----------
 # Im PyInstaller-Build liegt web/ in sys._MEIPASS (bzw. neben der exe beim onedir-build)
 _APP_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
