@@ -218,8 +218,11 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   <div class="view" id="view-releases">
     <h1 class="page">Release-Info</h1>
     <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen (xrel.to, scenenews …).</div>
-    <div class="addbar" style="display:flex;gap:8px;align-items:center">
+    <div class="addbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="loadReleases()">🔄 Aktualisieren</button>
+      <select id="rel-sort" onchange="loadReleases()"><option value="time">Neueste zuerst</option><option value="title">Titel A–Z</option></select>
+      <select id="rel-lang" onchange="loadReleases()"><option value="">Alle Sprachen</option><option value="German">Deutsch</option><option value="English">Englisch</option></select>
+      <input id="rel-q" placeholder="Suchen…" style="width:160px" onkeydown="if(event.key==='Enter')loadReleases()">
       <span id="rel-status" style="font-size:12.5px;color:var(--muted)"></span>
     </div>
     <div id="rel-list"></div>
@@ -802,16 +805,17 @@ async function addInfoSource() {
 async function loadReleases() {
   $('rel-status').textContent = 'lade…';
   try {
-    const d = await (await fetch('/api/releases')).json();
+    const params = new URLSearchParams({ sort: $('rel-sort').value, lang: $('rel-lang').value, q: $('rel-q').value.trim() });
+    const d = await (await fetch('/api/releases?' + params)).json();
     const rels = d.releases || [];
     $('rel-list').innerHTML = rels.map(r =>
       `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:13px">${r.title}</span>
-        <span style="width:90px;font-size:11px;color:var(--muted2)">[${r.group||'?'}]</span>
-        <span style="width:80px;font-size:11px;color:var(--muted2)">${r.type||''}</span>
-        <span style="width:80px;font-size:11px;color:var(--muted2)">${r.size||''}</span>
-        <span style="width:40px;font-size:11px;color:var(--accent)">${r.lang||''}</span>
-        <button class="small" data-q="${escAttr(r.title||'')}" onclick="xdccQ(this.dataset.q)">🔍</button>
+        <span style="flex:1;font-size:13px">${escAttr(r.title)}</span>
+        <span style="width:118px;font-size:11px;color:var(--muted2)">${escAttr(r.date)}</span>
+        <span style="width:72px;font-size:11px;color:var(--muted2)">${escAttr(r.quality)}</span>
+        <span style="width:82px;font-size:11px;color:var(--muted2)">${escAttr(r.size)}</span>
+        <span style="width:64px;font-size:11px;color:var(--accent)">${escAttr(r.lang)}</span>
+        <button class="small" data-q="${escAttr(r.title)}" onclick="xdccQ(this.dataset.q)">🔍</button>
       </div>`).join('') || '<div style="font-size:13px;color:var(--muted2);padding:12px">keine Releases</div>';
     $('rel-status').textContent = `${rels.length} Releases`;
   } catch (e) {

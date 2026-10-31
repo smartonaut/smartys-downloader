@@ -889,10 +889,13 @@ async def save_info_sources(request: Request):
 
 
 @app.get("/api/releases")
-def get_releases():
+def get_releases(sort: str = "time", lang: str = "", quality: str = "",
+                 year: str = "", q: str = ""):
     from . import releaseinfo
     try:
-        return {"ok": True, "releases": releaseinfo.fetch_releases()}
+        releases = releaseinfo.fetch_releases(sort=sort, lang=lang, quality=quality,
+                                              year=year, q=q)
+        return {"ok": True, "releases": releases}
     except Exception as e:
         return {"ok": False, "error": str(e)[:120]}
 
