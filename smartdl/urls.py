@@ -1,8 +1,8 @@
 """Hoster-Erkennung + URL-Parsing.
 
-Statisch: bekannte Container-/Seiten-Dienste (filecrypt, hide.cx, ddl.example).
+Statisch: bekannte Container-/Link-Schutz-Dienste (filecrypt, hide.cx).
 Dynamisch: DebridLink (353+) und Real-Debrid (281) liefern ihre unterstützten
-Hoster-Domains — wir laden sie beim Start und erkennen damit JEDE Szene-URL.
+Hoster-Domains — wir laden sie beim Start und erkennen damit JEDE URL.
 (Das war PyLoads größter Trumpf; hier nachgebaut, aber ohne PyLoads Ballast.)
 """
 import re
@@ -10,15 +10,12 @@ import time
 from urllib.parse import urlparse
 
 # --- Container-/Seiten-Dienste (nicht Debrid-Hoster) ---
+# KEINE vorkonfigurierten Szene-/Forum-Quellen — der Nutzer legt eigene Seiten an.
 CONTAINER_MAP = {
     "filecrypt.cc": "filecrypt",
     "filecrypt.co": "filecrypt",
     "filecrypt.to": "filecrypt",
     "hide.cx": "hidecx",
-    "ddl.example.me": "dataload",
-    "ddlindex.example.site": "ddlindex.example",
-    "seriesforum.example.org": "seriesforum.example",
-    "filmfans.org": "filmfans",
     "tolink.to": "tolink",
 }
 
