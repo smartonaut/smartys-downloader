@@ -372,7 +372,14 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
     <div class="set-card">
       <h3>🤖 KI-Assistent</h3>
       <div class="set-row"><div class="lbl">KI-Endpoint<small>ollama/llama-server, OpenAI-kompatibel</small></div><input id="set-ai-endpoint" placeholder="http://localhost:11434" onchange="saveSettings()"></div>
-      <div class="set-row"><div class="lbl">Modell<small>z. B. qwen2.5:7b</small></div><input id="set-ai-model" placeholder="qwen2.5:7b" onchange="saveSettings()"></div>
+      <div class="set-row"><div class="lbl">Modell<small>aktives Modell</small></div><select id="set-ai-model" style="flex:1" onchange="saveSettings()"></select></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="ai-pull-name" placeholder="Modell laden: qwen2.5:7b · hf.co/bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M" style="flex:1">
+        <button class="small" onclick="aiPullModel()">Laden</button>
+        <button class="small" onclick="aiRefreshModels()" title="Modelle aktualisieren">🔄</button>
+      </div>
+      <div id="ai-gpu" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+      <div id="ai-model-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
     </div>
     <div class="set-card">
       <h3>🔒 VPN</h3>
@@ -671,7 +678,8 @@ async function loadSettings() {
   fillIrcNetworks(irc.nicks || {});
   const ai = currentSettings.ai || {};
   $('set-ai-endpoint').value = ai.endpoint || '';
-  $('set-ai-model').value = ai.model || '';
+  aiRefreshModels(ai.model || '');
+  aiLoadGpu();
   const vpn = currentSettings.vpn || {};
   $('set-vpn-enabled').value = vpn.enabled || '0';
   $('set-vpn-type').value = vpn.type || 'surfshark';
@@ -882,6 +890,52 @@ async function aiSend() {
   } catch (e) {
     bubble.textContent = 'KI nicht erreichbar — läuft der lokale LLM-Server? (Einstellungen → KI-Assistent)';
   }
+}
+// ===== KI-Modelle =====
+async function aiRefreshModels(pref) {
+  try {
+    const d = await (await fetch('/api/ai/models')).json();
+    const models = d.models || [];
+    const current = pref || (currentSettings.ai && currentSettings.ai.model) || '';
+    let opts = models.map(m => `<option value="${m}">${m}</option>`).join('');
+    if (current && !models.includes(current)) opts = `<option value="${current}">${current}</option>` + opts;
+    $('set-ai-model').innerHTML = opts || '<option value="">(keine — ollama läuft nicht?)</option>';
+    $('set-ai-model').value = current;
+    $('ai-model-status').textContent = d.reachable ? `${models.length} Modelle verfügbar` : '⚠ ollama nicht erreichbar — installiere ollama + lade ein Modell';
+    $('ai-model-status').style.color = d.reachable ? 'var(--green)' : 'var(--yellow)';
+  } catch (e) {}
+}
+async function aiPullModel() {
+  const name = $('ai-pull-name').value.trim();
+  if (!name) return;
+  $('ai-model-status').textContent = 'lade ' + name + '… (kann Minuten dauern)';
+  $('ai-model-status').style.color = 'var(--muted)';
+  try {
+    const d = await (await fetch('/api/ai/pull', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({model: name}) })).json();
+    if (d.ok) {
+      $('ai-model-status').textContent = '✓ ' + name + ' geladen';
+      $('ai-model-status').style.color = 'var(--green)';
+      $('set-ai-model').value = name; saveSettings();
+    } else {
+      $('ai-model-status').textContent = 'Fehler: ' + (d.error || 'unbekannt');
+      $('ai-model-status').style.color = '#ff6b6b';
+    }
+    $('ai-pull-name').value = '';
+    aiRefreshModels();
+  } catch (e) {
+    $('ai-model-status').textContent = 'Fehler beim Laden';
+    $('ai-model-status').style.color = '#ff6b6b';
+  }
+}
+// ===== GPU-Erkennung =====
+async function aiLoadGpu() {
+  try {
+    const d = await (await fetch('/api/ai/gpu')).json();
+    const rec = (d.recommended || []).map(r =>
+      `<button class="small" style="margin:2px 4px 2px 0" onclick="$('ai-pull-name').value='${r.model}';aiPullModel()">${r.model}</button>`).join('');
+    $('ai-gpu').innerHTML = `🎮 ${escAttr(d.name)} · ${d.vram_gb > 0 ? d.vram_gb + ' GB VRAM' : 'keine GPU (CPU-only)'}` +
+      (rec ? `<br><span style="color:var(--muted2)">Empfohlen für deine Karte:</span> ${rec}` : '');
+  } catch (e) {}
 }
 // ===== VPN =====
 function vpnTypeChanged() {

@@ -144,3 +144,37 @@ def run_agent(user_message: str, history: list | None = None) -> dict:
             messages.append({"role": "tool", "tool_call_id": tc.get("id", name),
                              "content": json.dumps(result, ensure_ascii=False)})
     return {"reply": "Die Aufgabe wurde nicht abgeschlossen.", "tool_calls": calls_log}
+
+
+# ---- Modell-Verwaltung (ollama) ----
+
+def list_models() -> list[str]:
+    """Verfügbare Modelle vom lokalen ollama (localhost:11434/api/tags)."""
+    url = f"{_endpoint()}/api/tags"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            data = json.loads(r.read().decode("utf-8", "replace"))
+        return [m.get("name", "") for m in data.get("models", [])]
+    except Exception:
+        return []
+
+
+def pull_model(name: str) -> dict:
+    """Modell nachladen (ollama pull) — blockiert bis fertig (kann Minuten dauern)."""
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "error": "kein Modellname"}
+    url = f"{_endpoint()}/api/pull"
+    body = json.dumps({"name": name, "stream": False}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=1800) as r:
+        r.read()
+    return {"ok": True, "model": name}
+
+
+def is_reachable() -> bool:
+    try:
+        with urllib.request.urlopen(f"{_endpoint()}/api/tags", timeout=5) as r:
+            return r.status == 200
+    except Exception:
+        return False
