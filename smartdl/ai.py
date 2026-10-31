@@ -11,7 +11,6 @@ import json
 import urllib.request
 
 from . import store, search
-from .config import IRC_NETWORKS
 
 DEFAULT_ENDPOINT = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:7b"
@@ -70,12 +69,14 @@ def llm_chat(messages: list, tools: list | None = None) -> dict:
 
 
 def _resolve_network(network: str) -> str:
-    """Hostname/Fragment → gültiger IRC_NETWORKS-Key (z. B. Host → Netzwerk-Name)."""
+    """Hostname/Fragment → gültiger Netzwerk-Name (z. B. Host → Netzwerk-Key)."""
+    from . import xdcc
+    nets = xdcc.get_networks()
     n = (network or "").lower().strip()
-    for key, cfg in IRC_NETWORKS.items():
+    for key, cfg in nets.items():
         if n == key.lower() or n in cfg["host"].lower() or cfg["host"].lower() in n:
             return key
-    for key in IRC_NETWORKS:
+    for key in nets:
         if key.lower() in n:
             return key
     return ""

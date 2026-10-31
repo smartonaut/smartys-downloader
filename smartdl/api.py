@@ -711,10 +711,20 @@ def status():
 # ---------- XDCC / IRC ----------
 @app.get("/api/xdcc/networks")
 def xdcc_networks():
-    from .config import IRC_NETWORKS
+    from . import xdcc
+    nets = xdcc.get_networks()
     return {"networks": {k: {"host": v["host"], "nickserv": v.get("nickserv", False)}
-                         for k, v in IRC_NETWORKS.items()},
+                         for k, v in nets.items()},
+            "full": nets,
             "nicks": _irc_nicks()}
+
+
+@app.post("/api/xdcc/networks")
+async def xdcc_networks_save(request: Request):
+    body = await request.json()
+    from . import xdcc
+    nets = xdcc.save_networks(body.get("networks", {}))
+    return {"ok": True, "networks": nets}
 
 
 @app.get("/api/xdcc/search")
@@ -784,8 +794,8 @@ async def xdcc_download(request: Request):
     category = str(body.get("category", "movie")).strip() or "movie"
     if not (network and bot and pack):
         return {"ok": False, "error": "network/bot/pack fehlt"}
-    from .config import IRC_NETWORKS
-    if network not in IRC_NETWORKS:
+    from . import xdcc
+    if network not in xdcc.get_networks():
         return {"ok": False, "error": f"unbekanntes Netzwerk: {network}"}
 
     url = f"xdcc://{network}/{bot}/{pack}"
