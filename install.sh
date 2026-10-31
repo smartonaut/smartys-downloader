@@ -260,7 +260,7 @@ fi
 if ! grep -q "^FLARESOLVERR_URL=.\+" "$ENV_FILE" 2>/dev/null; then
   warn ""
   warn "Filecrypt-Support ist OHNE FlareSolverr nicht aktiv."
-  warn "Alles andere (hide.cx, Hoster-Links, data-load) funktioniert normal."
+  warn "Alles andere (hide.cx, Hoster-Links) funktioniert normal."
   warn ""
   warn "FlareSolverr nachrüsten (einmalig, auf DIESEM oder einem anderen Rechner):"
   warn "  docker run -d --name flaresolverr -p 8191:8191 \\"

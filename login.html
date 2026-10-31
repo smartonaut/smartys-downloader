@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login — Smartys Downloader</title>
+<style>
+:root {
+  --bg: #0b0d12; --card: #161a24; --border: #262c3d; --text: #e8eaf2;
+  --muted: #7d8399; --accent: #5b8cff; --accent2: #7c5bff; --red: #f87171;
+  --glow: 0 0 20px rgba(91,140,255,.25);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh; display: grid; place-items: center;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(124,91,255,.12), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(34,211,238,.08), transparent 50%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.login-box {
+  width: 360px; background: linear-gradient(160deg, var(--card), #11141c);
+  border: 1px solid var(--border); border-radius: 20px; padding: 36px 32px;
+  text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.4), var(--glow);
+}
+.mark {
+  width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 18px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: grid; place-items: center; font-size: 26px; box-shadow: var(--glow);
+}
+h1 { font-size: 19px; margin-bottom: 4px; }
+.sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+input {
+  width: 100%; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  font-size: 14px; outline: none; margin-bottom: 12px; text-align: center;
+  transition: border-color .15s;
+}
+input:focus { border-color: var(--accent); }
+input.code { letter-spacing: 6px; font-size: 18px; font-weight: 700; }
+button {
+  width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; border: none; border-radius: 10px; padding: 12px;
+  font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  box-shadow: 0 4px 14px rgba(91,140,255,.3); transition: all .15s;
+}
+button:hover { filter: brightness(1.12); }
+.err { color: var(--red); font-size: 13px; margin-bottom: 10px; min-height: 18px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="mark">⬇</div>
+  <h1>Smartys Downloader</h1>
+  <div class="sub">Bitte melde dich an</div>
+  <div class="err" id="err"></div>
+  <input type="password" id="pw" placeholder="Passwort" autofocus>
+  <input type="text" id="code" class="code hidden" placeholder="000000" maxlength="6"
+         inputmode="numeric" autocomplete="one-time-code">
+  <button onclick="login()">Anmelden</button>
+</div>
+<script>
+async function login() {
+  const pw = document.getElementById('pw').value;
+  const code = document.getElementById('code').value;
+  const err = document.getElementById('err');
+  const r = await fetch('/api/auth/login', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: pw, code})
+  });
+  const j = await r.json();
+  if (j.ok) { location.href = '/'; return; }
+  err.textContent = '✗ ' + (j.error || 'login fehlgeschlagen');
+  if (j.need_2fa) {
+    document.getElementById('code').classList.remove('hidden');
+    document.getElementById('code').focus();
+    err.textContent = '✗ 2FA-Code erforderlich';
+  }
+}
+document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') {
+  if (!document.getElementById('code').classList.contains('hidden')) return;
+  login();
+}});
+document.getElementById('code').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+</script>
+</body>
+</html>

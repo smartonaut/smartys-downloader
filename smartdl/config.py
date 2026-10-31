@@ -89,20 +89,12 @@ HUGINN_URL = os.getenv("HUGINN_URL", "")
 
 # IRC-Netze für XDCC-Downloads. nickserv=True → vor dem Request IDENTIFY
 # (Passwort aus dem Keystore unter irc_nickserv_<network_lower>).
-# KEINE persönlichen Defaults — jeder Nutzer konfiguriert eigenen Nick
-# (über Einstellungen → IRC/XDCC oder IRC_NICK etc.).
+# KEINE vorkonfigurierten Netze — der Nutzer trägt seine eigenen IRC-Netze
+# über die GUI ein (Einstellungen → IRC/XDCC). Bleibt bewusst leer.
 IRC_NICK = os.getenv("IRC_NICK", "")
 IRC_USER = os.getenv("IRC_USER", "user")
 IRC_REALNAME = os.getenv("IRC_REALNAME", "Smart Downloader")
-IRC_NETWORKS = {
-    "Abjects":   {"host": "irc.eu.abjects.net",  "port": 6697, "ssl": True, "nickserv": True,
-                  "channels": ["#moviegods", "#mg-chat", "#beast-xdcc", "#beast-chat"]},
-    "Rizon":     {"host": "irc.rizon.net",       "port": 6697, "ssl": True, "nickserv": True,
-                  "channels": ["#ELITEWAREZ", "#elite-chat"]},
-    "SceneP2P":  {"host": "irc.scenep2p.net",    "port": 6697, "ssl": True, "nickserv": False},
-    "Undernet":  {"host": "irc.undernet.org",    "port": 6697, "ssl": True, "nickserv": False},
-    "RelaxedIRC": {"host": "irc.relaxedirc.net", "port": 6697, "ssl": True, "nickserv": False},
-}
+IRC_NETWORKS = {}
 
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)

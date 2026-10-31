@@ -2,13 +2,11 @@
 
 Ein leichtgewichtiger, selbst gehosteter Download-Manager — der JDownloader-2-Ansatz ohne JVM-Ballast.
 
-[Website](https://downloader.smartys.tech) · [Downloads](https://downloader.smartys.tech) · [Community & Versionslog](https://forum.smartys.tech) · [Changelog](CHANGELOG.md)
-
-**Status:** v0.3.1 — Kern-Engine + Beschleuniger-Features (Multi-Segment, Scheduler, Reconnect, Multi-Mirror, Torrent) + Debrid/Filecrypt-Pipeline E2E
+**Status:** v0.3 — Kern-Engine + Beschleuniger-Features (Multi-Segment, Scheduler, Reconnect, Multi-Mirror, Torrent) + Debrid/Filecrypt-Pipeline E2E
 
 ## Was ist das?
 
-Ein Download-Manager für Szene-Container und One-Click-Hoster, gebaut als schlanke
+Ein Download-Manager für Download-Container und One-Click-Hoster, gebaut als schlanke
 Alternative zu JDownloader 2 (377 MB + JVM) und PyLoad (Plugin-Wartungs-Friedhof).
 
 Kernidee: **Debrid-Dienste (Real-Debrid + DebridLink) lösen 634+ Hoster auf** —
@@ -18,7 +16,7 @@ saubere Pipeline:
 ```
 Link/Container rein
    ↓
-Container-Resolver (Filecrypt CF+PoW nativ im Browser / hide.cx API / data-load)
+Container-Resolver (Filecrypt CF+PoW nativ im Browser / hide.cx API)
    ↓
 Debrid-Router (Real-Debrid → DebridLink, erster gewinnt, mit Fallback)
    ↓
@@ -37,7 +35,6 @@ Web-GUI mit Clipboard-Watcher
 - **600+ Hoster-Domains** — dynamisch von allen konfigurierten Multihostern geladen (nicht hart codiert)
 - **Filecrypt-Resolver** — Cloudflare-Challenge + PoW-Captcha (SHA1-Puzzle) nativ im echten Browser gelöst, CNL2 (AES-CBC) lokal entschlüsselt
 - **hide.cx-Resolver** — Container-API direkt (JSON, keine Captchas)
-- **data-load.me-Login** — XenForo-Login + Release-Threads parsen
 - **Passwort-Liste** — `archive_passwords.txt` wird für Container- und Archiv-Passwörter durchgetestet
 - **Chunked Downloads** — Resume via `.part`, Speed-Limit, Auto-Retry (3×)
 - **Multi-Segment (Beschleuniger)** — Dateien in 8 parallelen Range-Verbindungen laden (FDM-Stil); Range-Support wird automatisch erkannt, sonst Single-Stream-Fallback; Segment-Fortschritt im `.parts`-Sidecar → Resume setzt exakt bei fehlenden Ranges an
@@ -121,7 +118,6 @@ web/                # Web-GUI (dunkles Dashboard)
 - Web-GUI + WebSocket-Fortschritt + Clipboard-Watcher (Wayland event-getrieben)
 - **Filecrypt komplett entschlüsselt**: CF-Turnstile per TAB+SPACE-Trick (aus FlareSolverr-Source), PoW-Captcha nativ im uc-Browser, CNL2-AES lokal
 - **hide.cx Container-API** entschlüsselt (JSON + Link-Endpunkte)
-- **data-load.me** XenForo-Login + Thread-Parsing
 - **634 dynamische Hoster-Domains** von DebridLink + Real-Debrid
 - Paket-weises Post-Processing (Multipart-RAR wartet auf alle Parts)
 - JD2-Vollanalyse als Architektur-Blueprint (docs/JD2_ANALYSIS.md)

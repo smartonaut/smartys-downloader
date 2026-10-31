@@ -8,8 +8,7 @@ wie die Suche abgesetzt und die Antwort geparst wird:
   - "custom"  : GET {url} mit {query}-Platzhalter            → JSON {results:[...]}
 
 Alle aktivierten Maschinen werden parallel abgefragt, Ergebnisse vereinheitlicht
-und zusammengeführt. Der Nutzer kann über die GUI eigene Maschinen hinzufügen —
-so überlebt die Suche das Kommen und Gehen freier Engines (z. B. sunxdcc→skullxdcc).
+und zusammengeführt. Der Nutzer kann über die GUI eigene Maschinen hinzufügen.
 """
 import json
 import urllib.parse
@@ -18,12 +17,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import store
 
-# Eingebaute freie Suchmaschinen (Default — der Nutzer kann ergänzen/löschen).
-# Hinweis: sunxdcc.com wird 2026 abgeschaltet; skullxdcc.com (Anubis-geschützt)
-# ist der Nachfolger. Deshalb ist die Registry wichtiger als jede Einzel-Engine.
-BUILTIN_ENGINES = [
-    {"name": "sunxdcc", "url": "https://sunxdcc.com", "type": "sunxdcc", "enabled": True},
-]
+# KEINE vorkonfigurierten Suchmaschinen — der Nutzer trägt seine eigenen
+# XDCC-Suchmaschinen über die GUI ein (Einstellungen → Suchmaschinen).
+# Bleibt bewusst leer, damit der Downloader quellen-neutral bleibt.
+BUILTIN_ENGINES = []
 
 _UNIFIED_FIELDS = ("network", "channel", "bot", "pack", "size", "filename", "engine")
 

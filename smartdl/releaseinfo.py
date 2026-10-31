@@ -1,8 +1,7 @@
 """Release-Info: zeigt an, welche Releases gerade online sind.
 
 Info-Quellen (nutzer-konfigurierbar) — ähnlich der Suchmaschinen-Registry:
-  - "xrel"   : xREL-API (api.xrel.to) — sauberes JSON mit TV/Film-Releases
-  - "rss"    : RSS/Atom-Feed einer Szene-News-Seite
+  - "rss"    : RSS/Atom-Feed einer News-Seite
   - "custom" : eigene JSON-Quelle (Liste von Releases)
 
 Der Nutzer trägt seine Quellen selbst ein; die Ergebnisse werden vereinheitlicht
@@ -17,9 +16,7 @@ from datetime import datetime
 
 from . import store
 
-XREL_API = "https://api.xrel.to/v2"
-
-# xREL-Kategorien für das Menü (wie xrel.to): Label → (category_name, ext_info_type)
+# xREL-Kategorien für das Menü: Label → (category_name, ext_info_type)
 CATEGORIES = [
     ("Serien", "TV", "tv"),
     ("Filme", "MOVIES", "movie"),
@@ -39,7 +36,7 @@ def get_sources() -> list[dict]:
                 return [s for s in srcs if isinstance(s, dict) and s.get("url")]
         except (json.JSONDecodeError, ValueError):
             pass
-    return [{"name": "xrel.to", "url": XREL_API, "type": "xrel", "enabled": True}]
+    return []
 
 
 def save_sources(sources: list[dict]) -> list[dict]:

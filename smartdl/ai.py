@@ -1,6 +1,6 @@
 """KI-Assistent: lokales LLM (ollama/llama-server) mit Tool-Calling (Suche + Download).
 
-Der Nutzer sagt in natürlicher Sprache, was er will („lade Verity von Abjects").
+Der Nutzer sagt in natürlicher Sprache, was er will („lade Datei X von Netz Y").
 Die KI sucht autonom über die konfigurierten Suchmaschinen, startet den Download
 und meldet das Ergebnis — komplett ohne manuellen Schritt.
 
@@ -70,7 +70,7 @@ def llm_chat(messages: list, tools: list | None = None) -> dict:
 
 
 def _resolve_network(network: str) -> str:
-    """Hostname/Fragment → gültiger IRC_NETWORKS-Key („irc.abjects.net" → „Abjects")."""
+    """Hostname/Fragment → gültiger IRC_NETWORKS-Key (z. B. Host → Netzwerk-Name)."""
     n = (network or "").lower().strip()
     for key, cfg in IRC_NETWORKS.items():
         if n == key.lower() or n in cfg["host"].lower() or cfg["host"].lower() in n:

@@ -121,9 +121,8 @@ def fetch(network: str, bot: str, pack: str, dest: str,
         if cfg.get("nickserv"):
             client.identify("NickServ", nickserv_password(network))
         # Channel beitreten: konfigurierte Download-Channels des Netzes
-        # (z. B. Abjects: #moviegods + #mg-chat) + der Kanal aus dem
-        # Suchergebnis, falls abweichend. Manche Bots servieren nur, wenn
-        # man in ihren Channels ist.
+        # + der Kanal aus dem Suchergebnis, falls abweichend.
+        # Manche Bots servieren nur, wenn man in ihren Channels ist.
         chans = list(cfg.get("channels", []))
         if channel and channel not in chans:
             chans.append(channel)

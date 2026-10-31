@@ -101,8 +101,7 @@ def resolve_container_playwright(url: str, password: str | None = None) -> list[
     if not is_filecrypt(url):
         raise FilecryptError(f"Kein Filecrypt-Link: {url}")
 
-    passwords = ([password] if password else []) + ["funxd", "serienfans.org",
-                                                   "filecrypt", "ddl"]
+    passwords = ([password] if password else []) + ["filecrypt", "ddl"]
     html = asyncio.run(_resolve_pw_playwright(url, passwords))
 
     cnl = _parse_cnl2(html)

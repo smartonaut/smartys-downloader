@@ -2,7 +2,7 @@
 
 Pipeline (alles durch FlareSolverrs Browser — Session-Stickiness!):
   1. FlareSolverr GET → Cloudflare gelöst, Passwort-Formular
-  2. Passwort-POST (Default funxd) → PoW-Captcha-Seite
+  2. Passwort-POST (aus Passwort-Liste) → PoW-Captcha-Seite
   3. Challenge vom Session-Endpoint HOLEN (durch denselben Browser!)
   4. PoW in Python lösen (SHA1 leading zeros) + pow_x/pow_data aus Node (m.js/s.js)
   5. cform-POST mit allen Feldern → CNL2-Seite (jk + crypted)
@@ -17,8 +17,8 @@ from .pow_captcha import solve_pow, gen_pow_browser_fields
 from .urls import is_filecrypt
 from .config import FILECRYPT_ENABLED
 
-# Typische Container-Passwörter (funxd nutzt "funxd")
-DEFAULT_PASSWORDS = ["funxd", "serienfans.org", "filecrypt", "ddl"]
+# Typische Container-Passwörter (werden durch die Passwort-Liste ergänzt)
+DEFAULT_PASSWORDS = ["filecrypt", "ddl"]
 
 
 class FilecryptError(Exception):
