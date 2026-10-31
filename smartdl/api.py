@@ -838,6 +838,42 @@ def vpn_disconnect():
     return vpn.disconnect()
 
 
+@app.get("/api/hoster/sites")
+def get_hoster_sites():
+    from . import hostersearch
+    return {"sites": hostersearch.get_sites()}
+
+
+@app.post("/api/hoster/sites")
+async def save_hoster_sites(request: Request):
+    body = await request.json()
+    from . import hostersearch
+    sites = body.get("sites", [])
+    # Passwörter (falls mitgeschickt) → verschlüsselter Keystore, NIE in settings
+    for s in sites:
+        if isinstance(s, dict) and "password" in s and s.get("name"):
+            hostersearch.set_password(s["name"], str(s.get("password", "")))
+    clean = hostersearch.save_sites(sites)
+    return {"ok": True, "sites": clean}
+
+
+@app.post("/api/hoster/search")
+async def hoster_search(request: Request):
+    body = await request.json()
+    query = str(body.get("query", "")).strip()
+    if not query:
+        return {"results": [], "count": 0, "error": "keine Suchanfrage"}
+    from . import hostersearch
+    results = []
+    errors = []
+    for s in hostersearch.get_sites():
+        try:
+            results.extend(hostersearch.search(s, query))
+        except Exception as e:
+            errors.append(f"{s['name']}: {str(e)[:80]}")
+    return {"results": results, "count": len(results), "errors": errors}
+
+
 # ---------- Web-GUI ----------
 # Im PyInstaller-Build liegt web/ in sys._MEIPASS (bzw. neben der exe beim onedir-build)
 _APP_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
