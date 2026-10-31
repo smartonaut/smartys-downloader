@@ -142,6 +142,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   <div class="nav-btn" data-view="torrent"><span class="ico">🧲</span>Torrent</div>
   <div class="nav-btn" data-view="xdcc"><span class="ico">💬</span>XDCC</div>
   <div class="nav-btn" data-view="ai"><span class="ico">🤖</span>KI-Assistent</div>
+  <div class="nav-btn" data-view="releases"><span class="ico">📰</span>Release-Info</div>
   <div class="nav-btn" data-view="schedule"><span class="ico">🕒</span>Zeitplan</div>
   <div class="nav-btn" data-view="accounts"><span class="ico">🔑</span>Accounts</div>
   <div class="nav-btn" data-view="settings"><span class="ico">⚙️</span>Einstellungen</div>
@@ -213,6 +214,15 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <input id="ai-input" placeholder="z. B. „lade Verity – Dunkle Geheimnisse (deutsch)"" style="flex:1" onkeydown="if(event.key==='Enter')aiSend()">
       <button onclick="aiSend()">Senden</button>
     </div>
+  </div>
+  <div class="view" id="view-releases">
+    <h1 class="page">Release-Info</h1>
+    <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen (xrel.to, scenenews …).</div>
+    <div class="addbar" style="display:flex;gap:8px;align-items:center">
+      <button onclick="loadReleases()">🔄 Aktualisieren</button>
+      <span id="rel-status" style="font-size:12.5px;color:var(--muted)"></span>
+    </div>
+    <div id="rel-list"></div>
   </div>
   <div class="view" id="view-schedule">
     <h1 class="page">Zeitplan</h1>
@@ -342,6 +352,17 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
         <input id="hs-user" placeholder="Benutzer" style="width:120px">
         <input id="hs-pass" type="password" placeholder="Passwort" style="width:120px">
         <button class="small" onclick="addHosterSite()">Hinzufügen</button>
+      </div>
+    </div>
+    <div class="set-card">
+      <h3>📰 Info-Quellen</h3>
+      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">Release-Info-Quellen (xrel.to, scenenews …) — anzeigen, welche Releases online sind.</div>
+      <div id="info-sources"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input id="is-name" placeholder="Name" style="width:110px">
+        <input id="is-url" placeholder="URL (xREL-API / RSS)" style="flex:1;min-width:200px">
+        <select id="is-type" style="width:100px"><option value="xrel">xrel</option><option value="rss">rss</option><option value="custom">custom</option></select>
+        <button class="small" onclick="addInfoSource()">Hinzufügen</button>
       </div>
     </div>
     <div class="set-card">
@@ -603,6 +624,7 @@ async function loadAccounts() {
 let currentSettings = {};
 let currentEngines = [];
 let currentHosterSites = [];
+let currentInfoSources = [];
 // ===== Kategorie-Ziele =====
 function renderCatTargets(cats, targets) {
   $('cat-targets').innerHTML = cats.map(c => `
@@ -653,6 +675,7 @@ async function loadSettings() {
   vpnStatus();
   renderSearchEngines();
   renderHosterSites();
+  renderInfoSources();
   renderCatTargets(currentSettings.categories || [], currentSettings.category_targets || {});
   $('set-debrid-order').placeholder = currentSettings.debrid_services.join(',');
   const pwr = await fetch('/api/passwords');
@@ -746,6 +769,59 @@ async function removeHosterSite(i) {
   currentHosterSites.splice(i, 1);
   await persistHosterSites(currentHosterSites);
   renderHosterSites();
+}
+// ===== Info-Quellen / Release-Info =====
+async function renderInfoSources() {
+  try {
+    const r = await (await fetch('/api/releases/sources')).json();
+    currentInfoSources = r.sources || [];
+    $('info-sources').innerHTML = currentInfoSources.map((s, i) =>
+      `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleInfoSource(${i},this.checked)" title="aktiviert">
+        <span style="width:100px;font-size:13px">${s.name}</span>
+        <span style="flex:1;font-size:12px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.url}</span>
+        <span style="width:60px;font-size:11px;color:var(--muted2)">${s.type}</span>
+        <span class="x" style="cursor:pointer" onclick="removeInfoSource(${i})">×</span>
+      </div>`).join('') || '<div style="font-size:12px;color:var(--muted2)">keine Quellen</div>';
+  } catch (e) {}
+}
+async function persistInfoSources() {
+  await fetch('/api/releases/sources', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({sources: currentInfoSources}) });
+}
+async function toggleInfoSource(i, on) { currentInfoSources[i].enabled = on; await persistInfoSources(); }
+async function removeInfoSource(i) { currentInfoSources.splice(i, 1); await persistInfoSources(); renderInfoSources(); }
+async function addInfoSource() {
+  const name = $('is-name').value.trim() || 'quelle';
+  const url = $('is-url').value.trim();
+  if (!url) return;
+  currentInfoSources.push({ name, url, type: $('is-type').value, enabled: true });
+  await persistInfoSources();
+  $('is-name').value = ''; $('is-url').value = '';
+  renderInfoSources();
+}
+async function loadReleases() {
+  $('rel-status').textContent = 'lade…';
+  try {
+    const d = await (await fetch('/api/releases')).json();
+    const rels = d.releases || [];
+    $('rel-list').innerHTML = rels.map(r =>
+      `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:13px">${r.title}</span>
+        <span style="width:90px;font-size:11px;color:var(--muted2)">[${r.group||'?'}]</span>
+        <span style="width:80px;font-size:11px;color:var(--muted2)">${r.type||''}</span>
+        <span style="width:80px;font-size:11px;color:var(--muted2)">${r.size||''}</span>
+        <span style="width:40px;font-size:11px;color:var(--accent)">${r.lang||''}</span>
+        <button class="small" onclick="xdccQ('${(r.title||'').replace(/'/g,\"\\\\'\")}')">🔍</button>
+      </div>`).join('') || '<div style="font-size:13px;color:var(--muted2);padding:12px">keine Releases</div>';
+    $('rel-status').textContent = `${rels.length} Releases`;
+  } catch (e) {
+    $('rel-status').textContent = 'Fehler';
+  }
+}
+function xdccQ(q) {
+  $('xdcc-q').value = q;
+  document.querySelector('.nav-btn[data-view="xdcc"]').click();
+  xdccSearch();
 }
 async function saveNickservPw() {
   const pw = $('set-irc-nspw').value;
