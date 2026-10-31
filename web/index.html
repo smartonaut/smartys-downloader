@@ -337,6 +337,18 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <div class="set-row"><div class="lbl">Modell<small>z. B. qwen2.5:7b</small></div><input id="set-ai-model" placeholder="qwen2.5:7b" onchange="saveSettings()"></div>
     </div>
     <div class="set-card">
+      <h3>🔒 VPN</h3>
+      <div class="set-row"><div class="lbl">VPN aktiv<small>Download-Traffic durch den Tunnel</small></div><select id="set-vpn-enabled" onchange="saveSettings()"><option value="0">Aus</option><option value="1">An</option></select></div>
+      <div class="set-row"><div class="lbl">Typ</div><select id="set-vpn-type" onchange="vpnTypeChanged()"><option value="surfshark">Surfshark-CLI</option><option value="openvpn">OpenVPN</option></select></div>
+      <div class="set-row" id="vpn-cli-row"><div class="lbl">Surfshark-CLI<small>Befehl (surfshark-vpn)</small></div><input id="set-vpn-cli" placeholder="surfshark-vpn" onchange="saveSettings()"></div>
+      <div class="set-row" id="vpn-ovpn-row" style="display:none"><div class="lbl">OpenVPN-Config<small>Pfad zur .ovpn</small></div><input id="set-vpn-ovpn" placeholder="/pfad/zu/surfshark.ovpn" onchange="saveSettings()"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+        <button class="small" onclick="vpnConnect()">Verbinden</button>
+        <button class="small" onclick="vpnDisconnect()">Trennen</button>
+        <span id="vpn-state" style="font-size:12.5px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="set-card">
       <h3>🎬 Nachbearbeitung</h3>
       <div style="margin:14px 0 4px;font-size:13px;color:var(--muted2);font-weight:600">📁 Nachbearbeitung — Download-Ziele je Kategorie (rsync)</div><div id="cat-targets"></div><div style="font-size:12px;color:var(--muted2);margin-top:6px">Leer = nur entpacken, nichts kopieren. Formate: <code>user@host:/pfad/</code> oder <code>/lokaler/pfad/</code></div>
     </div>
@@ -618,6 +630,13 @@ async function loadSettings() {
   const ai = currentSettings.ai || {};
   $('set-ai-endpoint').value = ai.endpoint || '';
   $('set-ai-model').value = ai.model || '';
+  const vpn = currentSettings.vpn || {};
+  $('set-vpn-enabled').value = vpn.enabled || '0';
+  $('set-vpn-type').value = vpn.type || 'surfshark';
+  $('set-vpn-cli').value = vpn.cli || '';
+  $('set-vpn-ovpn').value = vpn.ovpn_config || '';
+  vpnTypeChanged();
+  vpnStatus();
   renderSearchEngines();
   renderCatTargets(currentSettings.categories || [], currentSettings.category_targets || {});
   $('set-debrid-order').placeholder = currentSettings.debrid_services.join(',');
@@ -630,7 +649,7 @@ async function loadSettings() {
   load2FAState();
 }
 async function saveSettings() {
-  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, irc_user: $('set-irc-user').value, irc_realname: $('set-irc-realname').value, irc_nicks: collectIrcNicks(), ai_endpoint: $('set-ai-endpoint').value, ai_model: $('set-ai-model').value, category_targets: collectCatTargets() };
+  const body = { max_parallel: $('set-parallel').value, speed_limit_kb: $('set-speed').value, segments: $('set-segments').value, debrid_order: $('set-debrid-order').value, clipboard_watch: $('set-clipboard').value, reconnect_fritz_host: $('set-rc-host').value, reconnect_fritz_user: $('set-rc-user').value, reconnect_fritz_pass: $('set-rc-pass').value, reconnect_url: $('set-rc-url').value, irc_user: $('set-irc-user').value, irc_realname: $('set-irc-realname').value, irc_nicks: collectIrcNicks(), ai_endpoint: $('set-ai-endpoint').value, ai_model: $('set-ai-model').value, vpn_enabled: $('set-vpn-enabled').value, vpn_type: $('set-vpn-type').value, vpn_cli: $('set-vpn-cli').value, vpn_ovpn_config: $('set-vpn-ovpn').value, category_targets: collectCatTargets() };
   await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
 }
 async function fillIrcNetworks(nicks) {
@@ -713,6 +732,22 @@ async function aiSend() {
   } catch (e) {
     bubble.textContent = 'KI nicht erreichbar — läuft der lokale LLM-Server? (Einstellungen → KI-Assistent)';
   }
+}
+// ===== VPN =====
+function vpnTypeChanged() {
+  const t = $('set-vpn-type').value;
+  $('vpn-cli-row').style.display = t === 'surfshark' ? '' : 'none';
+  $('vpn-ovpn-row').style.display = t === 'openvpn' ? '' : 'none';
+  saveSettings();
+}
+async function vpnConnect() { const d = await (await fetch('/api/vpn/connect', {method:'POST'})).json(); vpnStatus(); }
+async function vpnDisconnect() { await fetch('/api/vpn/disconnect', {method:'POST'}); vpnStatus(); }
+async function vpnStatus() {
+  try {
+    const d = await (await fetch('/api/vpn/status')).json();
+    $('vpn-state').textContent = d.active ? '● Verbunden' : '○ Getrennt';
+    $('vpn-state').style.color = d.active ? 'var(--green)' : 'var(--muted)';
+  } catch (e) { $('vpn-state').textContent = 'Status unbekannt'; }
 }
 async function addPassword() {
   const pw = $('new-pw').value.trim();
