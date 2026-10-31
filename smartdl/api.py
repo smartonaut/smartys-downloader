@@ -888,13 +888,23 @@ async def save_info_sources(request: Request):
     return {"ok": True, "sources": sources}
 
 
+@app.get("/api/releases/categories")
+def get_release_categories():
+    from . import releaseinfo
+    return {"categories": [c[0] for c in releaseinfo.CATEGORIES]}
+
+
 @app.get("/api/releases")
 def get_releases(sort: str = "time", lang: str = "", quality: str = "",
-                 year: str = "", q: str = ""):
+                 year: str = "", q: str = "", category: str = ""):
     from . import releaseinfo
     try:
-        releases = releaseinfo.fetch_releases(sort=sort, lang=lang, quality=quality,
-                                              year=year, q=q)
+        if category:
+            releases = releaseinfo.fetch_category(category, sort=sort, lang=lang,
+                                                  quality=quality, q=q)
+        else:
+            releases = releaseinfo.fetch_releases(sort=sort, lang=lang, quality=quality,
+                                                  year=year, q=q)
         return {"ok": True, "releases": releases}
     except Exception as e:
         return {"ok": False, "error": str(e)[:120]}
