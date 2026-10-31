@@ -178,3 +178,29 @@ def is_reachable() -> bool:
             return r.status == 200
     except Exception:
         return False
+
+
+# ---- Bestehende lokale KI erkennen (Port-Konflikt vermeiden) ----
+
+# Häufige lokale LLM-Ports: (port, name, pfad)
+LLM_CANDIDATES = [
+    (11434, "ollama", "/api/tags"),
+    (11434, "ollama (OpenAI)", "/v1/models"),
+    (8080, "llama.cpp / OpenAI", "/v1/models"),
+    (1234, "LM Studio", "/v1/models"),
+    (8000, "OpenAI-kompatibel", "/v1/models"),
+]
+
+
+def detect_existing_llm() -> dict | None:
+    """Prüft, ob schon eine lokale KI läuft. Liefert {url, name, port} oder None."""
+    for port, name, path in LLM_CANDIDATES:
+        url = f"http://127.0.0.1:{port}"
+        try:
+            req = urllib.request.Request(url + path, headers={"User-Agent": "smartdl"})
+            with urllib.request.urlopen(req, timeout=2) as r:
+                if r.status == 200:
+                    return {"url": url, "name": name, "port": port}
+        except Exception:
+            continue
+    return None
