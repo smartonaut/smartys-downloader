@@ -111,6 +111,12 @@ class QueueEngine:
         pkg = store.rows("SELECT * FROM packages WHERE id=?", (d["package_id"],))
         password = pkg[0]["password"] if pkg else None
 
+        # XDCC-Downloads laufen über IRC/DCC — eigener Pfad, kein HTTP/Debrid.
+        if (d.get("hoster") == "xdcc"
+                or (d.get("source_url") or "").startswith("xdcc://")):
+            self._process_xdcc(did, d)
+            return
+
         try:
             # Phase 1: Auflösen (nur wenn noch kein direct_url)
             if not d.get("direct_url"):
@@ -169,6 +175,70 @@ class QueueEngine:
             store.update_download(did, status="error", error=msg)
         except Exception as e:
             store.update_download(did, status="error", error=f"unerwartet: {e}")
+
+    # ---------- XDCC (IRC/DCC) ----------
+    def _process_xdcc(self, did: int, d: dict):
+        from .xdcc import parse_xdcc_url, fetch
+        from .dcc import DCCError
+        from .irc import IRCError
+
+        def fail(msg, retries):
+            if retries <= 3:
+                store.update_download(did, status="queued", error=msg,
+                                      retries=retries)
+            else:
+                store.update_download(did, status="error", error=msg)
+
+        try:
+            network, bot, pack, channel = parse_xdcc_url(d["source_url"])
+        except ValueError as e:
+            store.update_download(did, status="error", error=str(e))
+            return
+
+        store.update_download(did, status="downloading")
+        pause_ev = threading.Event()
+        with self._lock:
+            self._active[did] = pause_ev
+        name = d.get("filename") or f"xdcc_{bot}_{pack}.file"
+        dest = Path(config.DOWNLOAD_DIR) / name
+        try:
+            result = fetch(
+                network, bot, pack, str(dest),
+                filename=d.get("filename") or "",
+                size=d.get("size") or 0,
+                channel=channel,
+                progress_cb=lambda done, total, speed:
+                    store.update_download(did, downloaded=done, size=total,
+                                          speed=int(speed),
+                                          eta=_eta(done, total, speed)),
+                stop_event=pause_ev,
+            )
+        except DCCError as e:
+            with self._lock:
+                self._active.pop(did, None)
+            if str(e) == "PAUSED":
+                return
+            fail(str(e), (d.get("retries") or 0) + 1)
+            return
+        except IRCError as e:
+            with self._lock:
+                self._active.pop(did, None)
+            fail(str(e), (d.get("retries") or 0) + 1)
+            return
+        except Exception as e:
+            with self._lock:
+                self._active.pop(did, None)
+            fail(f"unerwartet: {e}", (d.get("retries") or 0) + 1)
+            return
+        with self._lock:
+            self._active.pop(did, None)
+        if result.get("ok"):
+            store.update_download(did, status="done",
+                                  filename=result.get("filename") or name,
+                                  size=result.get("size") or d.get("size") or 0,
+                                  speed=0, finished_at=time.time())
+            self._maybe_postprocess_package(d["package_id"])
+            self._check_package_done(d["package_id"])
 
     # ---------- Auflösung ----------
     def _resolve(self, url: str, package_password: str | None) -> dict:
@@ -282,6 +352,9 @@ class QueueEngine:
             wanted_exts = CATEGORY_EXTS.get(category, CATEGORY_EXTS["movie"])
 
             dl_dir = Path(config.DOWNLOAD_DIR)
+            wanted_exts = CATEGORY_EXTS.get(category, CATEGORY_EXTS["movie"])
+
+            # Fall 1: RAR-Archiv → entpacken → größte Datei → Ziel
             files = store.rows(
                 "SELECT filename FROM downloads WHERE package_id=? AND status='done'",
                 (pid,))

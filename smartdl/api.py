@@ -293,6 +293,12 @@ def get_settings():
         "schedule_rules": scheduler.load_rules(),
         "segments": store.get_setting("segments", str(config.SEGMENTS)),
         "aria2_rpc_port": store.get_setting("aria2_rpc_port", str(config.ARIA2_RPC_PORT)),
+        "irc": {
+            "nick": store.get_setting("irc_nick", config.IRC_NICK),
+            "user": store.get_setting("irc_user", config.IRC_USER),
+            "realname": store.get_setting("irc_realname", config.IRC_REALNAME),
+            "huginn_url": store.get_setting("irc_huginn_url", config.HUGINN_URL),
+        },
         "reconnect": {
             "configured": reconnect.is_configured(),
             "script": store.get_setting("reconnect_script", config.RECONNECT_SCRIPT),
@@ -310,9 +316,20 @@ async def save_settings(request: Request):
     body = await request.json()
     for key in ("max_parallel", "speed_limit_kb", "debrid_order", "clipboard_watch",
                 "segments", "aria2_rpc_port", "reconnect_script", "reconnect_url",
-                "reconnect_fritz_host", "reconnect_fritz_user", "reconnect_fritz_pass"):
+                "reconnect_fritz_host", "reconnect_fritz_user", "reconnect_fritz_pass",
+                "irc_nick", "irc_user", "irc_realname", "irc_huginn_url"):
         if key in body:
             store.set_setting(key, str(body[key]))
+    # NickServ-Passwort → NIE plaintext, sondern verschlüsselt im Keystore.
+    # (leer = vorhandenes Passwort des Netzes entfernen)
+    if "irc_nickserv_password" in body and body.get("irc_nickserv_network"):
+        from . import keystore
+        net = str(body["irc_nickserv_network"]).lower()
+        pw = str(body.get("irc_nickserv_password", ""))
+        if pw:
+            keystore.add_service(f"irc_nickserv_{net}", pw)
+        else:
+            keystore.remove_service(f"irc_nickserv_{net}")
     if "category_targets" in body:
         # dict → json; nur bekannte kategorien
         clean = {k: str(v) for k, v in body["category_targets"].items()
@@ -658,6 +675,100 @@ def status():
         "download_dir": str(config.DOWNLOAD_DIR),
         "clipboard_watch": config.CLIPBOARD_WATCH,
     }
+
+
+# ---------- XDCC / IRC ----------
+@app.get("/api/xdcc/networks")
+def xdcc_networks():
+    from .config import IRC_NETWORKS
+    from .xdcc import _irc_user_settings
+    nick = _irc_user_settings()["nick"]
+    return {"nick": nick,
+            "networks": {k: {"host": v["host"], "nickserv": v.get("nickserv", False)}
+                         for k, v in IRC_NETWORKS.items()}}
+
+
+@app.get("/api/xdcc/search")
+def xdcc_search(q: str = "", network: str = "", channel: str = "",
+                bot_name: str = "", limit: int = 100):
+    """Suche im Huginn-Index (Proxy — der Browser darf :8470 nicht direkt
+    ansprechen, CORS)."""
+    import urllib.request
+    import urllib.parse
+    from . import config
+    HUGINN_URL = store.get_setting("irc_huginn_url", config.HUGINN_URL) or config.HUGINN_URL
+    if not HUGINN_URL:
+        return {"results": [], "count": 0,
+                "error": "kein Suchindex konfiguriert (Einstellungen → IRC/XDCC → Huginn-URL)"}
+    params = {}
+    if q:
+        params["q"] = q
+    if network:
+        params["network"] = network
+    if channel:
+        params["channel"] = channel
+    if bot_name:
+        params["bot_name"] = bot_name
+    params["limit"] = min(limit, 500)
+    url = f"{HUGINN_URL}/api/search?" + urllib.parse.urlencode(params)
+    try:
+        with urllib.request.urlopen(url, timeout=8) as r:
+            import json as _json
+            return _json.loads(r.read().decode("utf-8", "replace"))
+    except Exception as e:
+        return {"results": [], "count": 0, "error": str(e)[:120]}
+
+
+@app.get("/api/xdcc/status")
+def xdcc_status():
+    """Erreichbarkeit + Statistiken des Huginn-Index."""
+    import urllib.request
+    from . import config
+    HUGINN_URL = store.get_setting("irc_huginn_url", config.HUGINN_URL) or config.HUGINN_URL
+    if not HUGINN_URL:
+        return {"reachable": False, "error": "kein Suchindex konfiguriert"}
+    try:
+        with urllib.request.urlopen(f"{HUGINN_URL}/api/stats", timeout=8) as r:
+            import json as _json
+            return {"reachable": True,
+                    "stats": _json.loads(r.read().decode("utf-8", "replace"))}
+    except Exception as e:
+        return {"reachable": False, "error": str(e)[:120]}
+
+
+@app.post("/api/xdcc/download")
+async def xdcc_download(request: Request):
+    """Body: {network, bot, pack, filename, size, channel, category}.
+
+    Legt Paket + Download (source_url=xdcc://...) an → Engine übernimmt.
+    """
+    body = await request.json()
+    network = str(body.get("network", "")).strip()
+    bot = str(body.get("bot", "")).strip()
+    pack = str(body.get("pack", "")).strip()
+    filename = str(body.get("filename", "")).strip()
+    channel = str(body.get("channel", "")).strip()
+    category = str(body.get("category", "movie")).strip() or "movie"
+    if not (network and bot and pack):
+        return {"ok": False, "error": "network/bot/pack fehlt"}
+    from .config import IRC_NETWORKS
+    if network not in IRC_NETWORKS:
+        return {"ok": False, "error": f"unbekanntes Netzwerk: {network}"}
+
+    url = f"xdcc://{network}/{bot}/{pack}"
+    if channel:
+        url += f"?ch={channel}"
+
+    name = filename or f"{bot} #{pack}"
+    pid = store.add_package(name, category=category)
+    try:
+        size = int(body.get("size") or 0)
+    except (TypeError, ValueError):
+        size = 0
+    store.add_download(pid, url, filename=filename, hoster="xdcc",
+                       status="queued", size=size)
+    store.update_package(pid, status="downloading")
+    return {"ok": True, "package_id": pid, "name": name}
 
 
 # ---------- Web-GUI ----------
