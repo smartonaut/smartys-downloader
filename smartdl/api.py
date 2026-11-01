@@ -411,6 +411,12 @@ def reconnect_status():
     return {"configured": reconnect.is_configured()}
 
 
+@app.get("/api/reconnect/discover")
+def reconnect_discover():
+    """Fritz!Box automatisch finden (fritz.box → SSDP)."""
+    return reconnect.discover_fritz()
+
+
 @app.get("/api/torrent")
 def torrent_status():
     """Torrent-Status + ob aria2 verfügbar ist."""
