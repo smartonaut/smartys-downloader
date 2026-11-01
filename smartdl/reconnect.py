@@ -20,7 +20,9 @@ automatisch durch die Direct-Hoster-Engine, wenn ein Limit erkannt wird.
 """
 import re
 import time
+import socket
 import subprocess
+import urllib.request
 
 from . import store
 from . import config
@@ -138,3 +140,60 @@ def reconnect() -> dict:
 
 def is_configured() -> bool:
     return bool(_env(ENV_SCRIPT) or _env(ENV_URL) or _env(ENV_FRITZ_HOST))
+
+
+def _probe_tr64(host: str, timeout: float = 3.0) -> bool:
+    """Prüft, ob unter host eine Fritz!Box-TR-064-Schnittstelle antwortet."""
+    try:
+        url = f"http://{host}:49000/tr64desc.xml"
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            body = r.read(4000).decode("utf-8", "replace")
+            return ("InternetGatewayDevice" in body
+                    or "urn:dslforum-org" in body
+                    or "urn:schemas-upnp-org" in body)
+    except Exception:
+        return False
+
+
+def _ssdp_discover(timeout: float = 3.0) -> str:
+    """SSDP M-SEARCH für die Fritz!Box (TR-064) → Host aus dem LOCATION-Header."""
+    msg = ("M-SEARCH * HTTP/1.1\r\n"
+           "HOST: 239.255.255.250:1900\r\n"
+           "MAN: \"ssdp:discover\"\r\n"
+           "MX: 2\r\n"
+           "ST: urn:dslforum-org:device:InternetGatewayDevice:1\r\n"
+           "\r\n")
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        s.settimeout(timeout)
+        s.sendto(msg.encode("utf-8"), ("239.255.255.250", 1900))
+        data, _ = s.recvfrom(4096)
+        s.close()
+        text = data.decode("utf-8", "replace")
+        m = re.search(r"LOCATION:\s*http://([^/\r\n]+)", text, re.I)
+        if m:
+            return m.group(1).strip()
+    except Exception:
+        pass
+    return ""
+
+
+def discover_fritz() -> dict:
+    """Fritz!Box automatisch finden — fritz.box zuerst, dann SSDP.
+
+    Liefert {"found": bool, "host": str}. Bei Erfolg den Host in den
+    Einstellungen (reconnect_fritz_host) speichern, sonst fragt die GUI
+    nach der IP.
+    """
+    # 1. fritz.box (mDNS-Hostname — robust auch wenn die IP geändert wurde)
+    try:
+        socket.gethostbyname("fritz.box")
+        if _probe_tr64("fritz.box"):
+            return {"found": True, "host": "fritz.box"}
+    except Exception:
+        pass
+    # 2. SSDP/TR-064-Discovery
+    ip = _ssdp_discover()
+    if ip and _probe_tr64(ip):
+        return {"found": True, "host": ip}
+    return {"found": False, "host": ""}
