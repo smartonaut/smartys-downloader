@@ -44,6 +44,10 @@ Web-GUI mit Clipboard-Watcher
 - **Torrent/Magnet** — via aria2 (externes Binary, JSON-RPC); `.torrent` + Magnet-Links, Pause/Resume/Remove
 - **Direct-Hoster-Fallback (M6)** — für Hoster, die KEIN Debrid-Dienst anbietet (filejoker, webshare.cz, krakenfiles, f2h.to): eigenes Plugin mit Free-Download-Flow oder Premium-Cookies (`~/.config/smartys-downloader/hoster_cookies/<name>.json`), greift automatisch wenn alle Debrid-Dienste den Hoster nicht kennen
 - **Paket-weises Entpacken** — Multipart-RAR erst entschlüsseln wenn ALLE Parts da sind, größte Videodatei via rsync zum Ziel (z. B. Jellyfin), danach Archive automatisch löschen
+- **XDCC/IRC mit DCC-Resume** — Packs über IRC beziehen; bricht ein Transfer ab (bei 8-GB-Dateien die Regel), wird per `DCC RESUME`/`DCC ACCEPT` ab der vorhandenen Byte-Position fortgesetzt statt neu geladen. Netze und Channels sind reine Nutzerdaten
+- **IRC-Netzwerk-Katalog** — 12 öffentliche Netze als Ein-Klick-Vorschlag (`networks.py`), live geprüft; Channels bleiben bewusst leer, weil sie zur Quelle gehören
+- **Blog-/DDL-Quellen** — RSS-basierte Quellen als Nutzerdaten (`ddl_sources`), Post-Auflösung inkl. Redirect-Dekodierung und Cloudflare-Fallback, danach Übergabe an die Queue
+- **Kategorie-Normalisierung** — "Filme"/"Serien"/"Musik" aus der Oberfläche werden auf die internen Schlüssel abgebildet; ein Ziel ohne passende Datei ist ein Fehler, kein stilles "fertig"
 
 ## Quick Start
 

@@ -2,6 +2,22 @@
 
 Quelle: Versionslog im Forum (https://forum.smartys.tech/d/3) · Pakete: https://downloader.smartys.tech
 
+## v0.4.1 — 21.11.2026
+
+- **Katalog öffentlicher IRC-Netzwerke (neu: `networks.py`)** — 12 Netze als
+  Ein-Klick-Vorschlag (Abjects, Rizon, SceneP2P, DALnet, UnderNet, EFNet,
+  QuakeNet, IRC-Highway, Aniverse, Snoonet, OFTC, hackint), jeweils mit Host,
+  Port, TLS- und NickServ-Flag sowie einer kurzen Einordnung. Sechs davon sind
+  XDCC-lastig.
+- Jeder Eintrag wurde **live geprüft** (Registration bis `001`, Netzwerkname aus
+  `005 NETWORK=`), Datum steht als `checked` dabei. Wo das TLS-Zertifikat nicht
+  zum Hostnamen passt (EFNet, QuakeNet, IRC-Highway, UnderNet), ist bewusst
+  `ssl: false` eingetragen statt die Zertifikatsprüfung abzuschalten.
+- **Channels bleiben leer** — die gehören zur Quelle, nicht zum Netz, und kommen
+  aus dem Suchergebnis oder aus der eigenen Konfiguration.
+- Neue API: `GET /api/xdcc/presets`, `POST /api/xdcc/presets/{name}`
+  (idempotent: ein bereits vorhandenes Netz wird nicht überschrieben).
+
 ## v0.4.0 — 21.11.2026
 
 Schwerpunkt: XDCC-Transfers überleben Abbrüche, und Quellen bleiben Nutzerdaten.

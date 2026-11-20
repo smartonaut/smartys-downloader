@@ -719,6 +719,20 @@ def xdcc_networks():
             "nicks": _irc_nicks()}
 
 
+@app.get("/api/xdcc/presets")
+def xdcc_presets():
+    """Katalog öffentlicher IRC-Netzwerke (Vorschläge, keine Nutzerdaten)."""
+    from . import xdcc
+    return {"presets": xdcc.presets()}
+
+
+@app.post("/api/xdcc/presets/{name}")
+def xdcc_preset_add(name: str):
+    """Preset in die eigenen Netzwerk-Einstellungen übernehmen."""
+    from . import xdcc
+    return xdcc.add_preset(name)
+
+
 @app.post("/api/xdcc/networks")
 async def xdcc_networks_save(request: Request):
     body = await request.json()

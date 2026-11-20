@@ -54,6 +54,31 @@ def save_networks(nets: dict) -> dict:
     return clean
 
 
+def presets() -> list[dict]:
+    """Öffentliche IRC-Netzwerke als Auswahl-Liste (nur Vorschläge)."""
+    from . import networks
+    return networks.list_presets()
+
+
+def add_preset(name: str) -> dict:
+    """Ein Preset in die Einstellungen übernehmen — idempotent.
+
+    Es wird nur das Netz angelegt (Host, Port, TLS, NickServ-Flag). Channels
+    bleiben leer: die gehören zur Quelle und kommen aus dem Suchergebnis oder
+    aus der eigenen Konfiguration.
+    """
+    from . import networks
+    nets = get_networks()
+    if name in nets:
+        return {"ok": True, "already": True, "networks": nets}
+    net = networks.as_network(name)
+    if not net:
+        return {"ok": False, "error": f"unbekanntes Netzwerk-Preset: {name}"}
+    nets[name] = net
+    save_networks(nets)
+    return {"ok": True, "already": False, "networks": nets}
+
+
 def parse_xdcc_url(url: str) -> tuple[str, str, str, str]:
     """xdcc://Network/Bot/42[?ch=<channel>] → (network, bot, pack, channel)."""
     rest = url[len("xdcc://"):]
