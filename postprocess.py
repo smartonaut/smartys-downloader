@@ -1,6 +1,6 @@
 """Post-Processing: Entpacken (RAR/7z/zip) + Move zum Jellyfin (RAIDEN via SSH).
 
-Regeln (Smartys Vorgabe 04.10.2026):
+Regeln:
   1. Nach Download: Archiv entpacken (RAR-Multipart mit Passwort-Liste)
   2. Videodatei (größte .mkv/.mp4/.avi) ins Jellyfin-Filme-Verzeichnis auf RAIDEN
   3. Danach: Archive + Downloads löschen — NUR der Film bleibt im Jellyfin

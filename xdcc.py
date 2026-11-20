@@ -6,15 +6,56 @@ URL-Format (source_url in der downloads-Tabelle):
 Die Ziel-Datei wird DIREKT nach DOWNLOAD_DIR geschrieben (nicht erst über
 Debrid/HTTP) — danach übernimmt der bestehende Postprocess-Pfad.
 """
+import json
 import time
+from pathlib import Path
 
-from . import config, keystore
+from . import config, keystore, store
 from .irc import IRCClient, IRCError
-from .dcc import receive, parse_dcc_send, DCCError
+from .dcc import receive, parse_dcc_send, request_resume, DCCError
+
+
+def get_networks() -> dict:
+    """IRC-Netze aus den Einstellungen (nutzer-konfigurierbar, GUI).
+
+    Format: {name: {host, port, ssl, nickserv, channels:[...]}}
+    """
+    raw = store.get_setting("irc_networks", "")
+    if raw:
+        try:
+            nets = json.loads(raw)
+            if isinstance(nets, dict):
+                return nets
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return {}
+
+
+def save_networks(nets: dict) -> dict:
+    """Netze validieren + persistieren. Liefert die bereinigte Liste zurück."""
+    clean = {}
+    for name, cfg in (nets or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        host = str(cfg.get("host", "")).strip()
+        if not host:
+            continue
+        channels = cfg.get("channels") or []
+        if isinstance(channels, str):
+            channels = [c.strip() for c in channels.replace(",", " ").split() if c.strip()]
+        clean[str(name).strip()] = {
+            "host": host,
+            "port": int(cfg.get("port", 6697)),
+            "ssl": bool(cfg.get("ssl", True)),
+            "nickserv": bool(cfg.get("nickserv", False)),
+            "channels": [str(c).strip() for c in channels if str(c).strip()],
+        }
+    store.set_setting("irc_networks", json.dumps(clean, ensure_ascii=False))
+    return clean
 
 
 def parse_xdcc_url(url: str) -> tuple[str, str, str, str]:
-    """xdcc://Network/Bot/42[?ch=#channel] → (network, bot, pack, channel)."""
+    """xdcc://Network/Bot/42[?ch=<channel>] → (network, bot, pack, channel)."""
     rest = url[len("xdcc://"):]
     base, _, qs = rest.partition("?")
     parts = base.split("/")
@@ -27,7 +68,7 @@ def parse_xdcc_url(url: str) -> tuple[str, str, str, str]:
 
 
 def _network_cfg(network: str) -> dict:
-    cfg = config.IRC_NETWORKS.get(network)
+    cfg = get_networks().get(network)
     if not cfg:
         raise IRCError(f"unbekanntes IRC-Netzwerk: {network}")
     return cfg
@@ -104,8 +145,8 @@ def fetch(network: str, bot: str, pack: str, dest: str,
 
     # EINDEUTIGER Nick pro Download: parallele Downloads kollidieren sonst
     # auf demselben Nick („433 nickname in use") und der zweite hängt im
-    # register()-Timeout. BEAST-X-Bots servieren auch unregistrierte Nicks
-    # (verifiziert) — der Random-Suffix ist also unkritisch.
+    # register()-Timeout. Viele Bots servieren auch unregistrierte Nicks —
+    # der Random-Suffix ist also unkritisch.
     import random
     nick = f"{base_nick}{random.randint(1000, 9999)}"
 
@@ -121,9 +162,8 @@ def fetch(network: str, bot: str, pack: str, dest: str,
         if cfg.get("nickserv"):
             client.identify("NickServ", nickserv_password(network))
         # Channel beitreten: konfigurierte Download-Channels des Netzes
-        # (z. B. Abjects: #moviechan.example + #mg-chat) + der Kanal aus dem
-        # Suchergebnis, falls abweichend. Manche Bots servieren nur, wenn
-        # man in ihren Channels ist.
+        # + der Kanal aus dem Suchergebnis, falls abweichend.
+        # Manche Bots servieren nur, wenn man in ihren Channels ist.
         chans = list(cfg.get("channels", []))
         if channel and channel not in chans:
             chans.append(channel)
@@ -138,10 +178,30 @@ def fetch(network: str, bot: str, pack: str, dest: str,
         got_name = offer["filename"] or filename
         got_size = offer["size"] or size
 
+        # ---- Resume: vorhandene Teildatei fortsetzen ----
+        # Ohne RESUME/ACCEPT-Handshake würde der Bot ab Byte 0 senden und die
+        # bereits geladenen Bytes überschreiben (Datei danach korrupt).
+        offset = 0
+        part = Path(dest)
+        if part.exists():
+            have = part.stat().st_size
+            if have and got_size and have >= got_size:
+                return {"ok": True, "filename": got_name, "size": have, "resumed_at": have}
+            if have and got_size and have < got_size:
+                if request_resume(client, bot, got_name, offer["port"], have):
+                    offset = have
+                    print(f"[dcc] RESUME akzeptiert: {got_name} ab {have} B", flush=True)
+                else:
+                    print(f"[dcc] RESUME abgelehnt: {got_name} — Neustart bei 0", flush=True)
+                    # Bot kann/will nicht fortsetzen → Teildatei verwerfen,
+                    # sonst entsteht eine lückenhaft zusammengesetzte Datei.
+                    part.unlink(missing_ok=True)
+
         received = receive(
             offer["ip"], offer["port"], got_size, dest,
-            offset=0, progress_cb=progress_cb, stop_event=stop_event,
+            offset=offset, progress_cb=progress_cb, stop_event=stop_event,
         )
-        return {"ok": True, "filename": got_name, "size": received}
+        return {"ok": True, "filename": got_name, "size": received,
+                "resumed_at": offset}
     finally:
         client.close()

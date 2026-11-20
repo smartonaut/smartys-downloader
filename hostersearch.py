@@ -1,4 +1,4 @@
-"""Hoster-/Forum-Suche: 1-Click-Hoster-Seiten (gully.to, forum.example, seriesforum.example.org …).
+"""Hoster-/Forum-Suche: 1-Click-Hoster-Seiten (nutzer-konfigurierbar).
 
 Der Nutzer trägt seine Seiten SELBST ein (URL + Login). Login-Daten liegen
 verschlüsselt im Keystore (Passwort unter hoster_<name>), Seiten-Metadaten in
@@ -6,13 +6,12 @@ den Einstellungen. Die Suche loggt sich ein, kratzt die Treffer und liefert
 Download-Links zurück — die laufen dann durch die bestehende Debrid-/Hoster-Pipeline.
 
 Typen:
-  - "xenforo"   : XenForo-Forum (ddl.example.me, forum.example, seriesforum.example.org) — _xfToken-Login
-  - "wordpress" : WordPress (ddlindex.example.site) — wp-login.php
+  - "xenforo"   : XenForo-Forum — _xfToken-Login
+  - "wordpress" : WordPress — wp-login.php
   - "custom"    : generische Suche über URL-Template mit {query}
 
-Cloudflare: curl_cffi (chrome-Impersonation) umgeht TLS-Fingerprinting —
-funktioniert für ddl.example.me/ddlindex.example.site, NICHT für JS-Challenge-Seiten
-(seriesforum.example.org) — die brauchen einen echten Browser.
+Cloudflare: curl_cffi (chrome-Impersonation) umgeht TLS-Fingerprinting.
+JS-Challenge-Seiten brauchen einen echten Browser (Playwright).
 """
 import asyncio
 import re

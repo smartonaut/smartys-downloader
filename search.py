@@ -3,13 +3,12 @@
 Jede Suchmaschine ist ein Eintrag mit Name, Basis-URL und Typ. Der Typ bestimmt,
 wie die Suche abgesetzt und die Antwort geparst wird:
 
-  - "xdccindex-a.example" : GET {url}/deliver.php?sterm={q}&page={n}  → JSON (parallele Arrays)
+  - "json_arrays" : GET {url} mit {query}-Platzhalter       → JSON (parallele Arrays)
   - "huginn"  : GET {url}/api/search?q={q}                  → JSON {results:[...]}
   - "custom"  : GET {url} mit {query}-Platzhalter            → JSON {results:[...]}
 
 Alle aktivierten Maschinen werden parallel abgefragt, Ergebnisse vereinheitlicht
-und zusammengeführt. Der Nutzer kann über die GUI eigene Maschinen hinzufügen —
-so überlebt die Suche das Kommen und Gehen freier Engines (z. B. xdccindex-a.example→xdccindex-b.example).
+und zusammengeführt. Der Nutzer kann über die GUI eigene Maschinen hinzufügen.
 """
 import json
 import urllib.parse
@@ -18,14 +17,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import store
 
-# Eingebaute freie Suchmaschinen (Default — der Nutzer kann ergänzen/löschen).
-# Hinweis: xdccindex-a.example.com wird 2026 abgeschaltet; xdccindex-b.example.com (Anubis-geschützt)
-# ist der Nachfolger. Deshalb ist die Registry wichtiger als jede Einzel-Engine.
-BUILTIN_ENGINES = [
-    {"name": "xdccindex-a.example", "url": "https://xdccindex-a.example.com", "type": "xdccindex-a.example", "enabled": True},
-]
+# KEINE vorkonfigurierten Suchmaschinen — der Nutzer trägt seine eigenen
+# XDCC-Suchmaschinen über die GUI ein (Einstellungen → Suchmaschinen).
+# Bleibt bewusst leer, damit der Downloader quellen-neutral bleibt.
+BUILTIN_ENGINES = []
 
 _UNIFIED_FIELDS = ("network", "channel", "bot", "pack", "size", "filename", "engine")
+
+
+def _norm_type(raw: str) -> str:
+    """Typ-Normalisierung: alte/branded Namen auf neutrale Typen abbilden."""
+    key = (raw or "").strip().lower()
+    aliases = {"json_arrays": "json_arrays", "huginn": "huginn", "custom": "custom"}
+    return aliases.get(key, "custom")
 
 
 def get_engines() -> list[dict]:
@@ -54,15 +58,16 @@ def save_engines(engines: list[dict]) -> list[dict]:
         clean.append({
             "name": name,
             "url": url.rstrip("/"),
-            "type": e.get("type", "custom") if e.get("type") in ("xdccindex-a.example", "huginn", "custom") else "custom",
+            # Neutrale Typen: "json_arrays" (parallele Arrays), "huginn", "custom".
+            "type": _norm_type(e.get("type", "custom")),
             "enabled": bool(e.get("enabled", True)),
         })
     store.set_setting("search_engines", json.dumps(clean))
     return clean
 
 
-def _search_xdccindex-a.example(url: str, query: str) -> list[dict]:
-    """xdccindex-a.example-API: parallele Arrays → vereinheitlichte Treffer."""
+def _search_json_arrays(url: str, query: str) -> list[dict]:
+    """Suchmaschine mit parallelen Arrays in der JSON-Antwort."""
     u = f"{url}/deliver.php?" + urllib.parse.urlencode({"sterm": query, "page": 0})
     req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=10) as r:
@@ -82,10 +87,20 @@ def _search_xdccindex-a.example(url: str, query: str) -> list[dict]:
 
 
 def _search_json_results(url: str, query: str) -> list[dict]:
-    """huginn/custom: {results:[{network,channel,bot_name,pack_id,size,filename}]}."""
-    full = url.replace("{query}", urllib.parse.quote(query))
-    with urllib.request.urlopen(full, timeout=10) as r:
-        data = json.loads(r.read().decode("utf-8", "replace"))
+    """huginn/custom: {results:[{network,channel,bot_name,pack_id,size,filename}]}.
+
+    Huginn indexiert Einzelbegriffe: eine mehrteilige Query ("Verity Dunkle")
+    liefert dort 0 Treffer, der erste Begriff allein aber 28. Deshalb bei
+    leerem Ergebnis einmal mit dem ersten Suchwort nachfassen.
+    """
+    def hole(q: str) -> dict:
+        full = url.replace("{query}", urllib.parse.quote(q))
+        with urllib.request.urlopen(full, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+
+    data = hole(query)
+    if not data.get("results") and len(query.split()) > 1:
+        data = hole(query.split()[0])
     out = []
     for it in data.get("results", []):
         out.append({
@@ -103,8 +118,8 @@ def _search_one(engine: dict, query: str) -> list[dict]:
     etype = engine.get("type", "custom")
     url = engine["url"]
     try:
-        if etype == "xdccindex-a.example":
-            hits = _search_xdccindex-a.example(url, query)
+        if etype == "json_arrays":
+            hits = _search_json_arrays(url, query)
         else:  # huginn + custom teilen das JSON-Format
             hits = _search_json_results(url, query)
     except Exception:

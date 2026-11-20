@@ -1,6 +1,6 @@
 """KI-Assistent: lokales LLM (ollama/llama-server) mit Tool-Calling (Suche + Download).
 
-Der Nutzer sagt in natürlicher Sprache, was er will („lade Verity von Abjects").
+Der Nutzer sagt in natürlicher Sprache, was er will („lade Datei X von Netz Y").
 Die KI sucht autonom über die konfigurierten Suchmaschinen, startet den Download
 und meldet das Ergebnis — komplett ohne manuellen Schritt.
 
@@ -8,10 +8,10 @@ Backend: OpenAI-kompatibel (/v1/chat/completions) → funktioniert mit ollama
 (http://localhost:11434) UND llama.cpp llama-server (http://localhost:8080).
 """
 import json
+import threading
 import urllib.request
 
 from . import store, search
-from .config import IRC_NETWORKS
 
 DEFAULT_ENDPOINT = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:7b"
@@ -70,12 +70,14 @@ def llm_chat(messages: list, tools: list | None = None) -> dict:
 
 
 def _resolve_network(network: str) -> str:
-    """Hostname/Fragment → gültiger IRC_NETWORKS-Key („irc.abjects.net" → „Abjects")."""
+    """Hostname/Fragment → gültiger Netzwerk-Name (z. B. Host → Netzwerk-Key)."""
+    from . import xdcc
+    nets = xdcc.get_networks()
     n = (network or "").lower().strip()
-    for key, cfg in IRC_NETWORKS.items():
+    for key, cfg in nets.items():
         if n == key.lower() or n in cfg["host"].lower() or cfg["host"].lower() in n:
             return key
-    for key in IRC_NETWORKS:
+    for key in nets:
         if key.lower() in n:
             return key
     return ""
@@ -179,6 +181,68 @@ def pull_model(name: str) -> dict:
     with urllib.request.urlopen(req, timeout=1800) as r:
         r.read()
     return {"ok": True, "model": name}
+
+
+# ---- Modell-Download im Hintergrund (mit Fortschritt) ----
+
+_pull_state = {"active": False, "model": "", "status": "", "done": 0, "total": 0, "error": ""}
+_pull_lock = threading.Lock()
+
+
+def start_pull(name: str) -> dict:
+    """Startet den Modell-Download im Hintergrund (nicht blockierend)."""
+    global _pull_state
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "error": "kein Modellname"}
+    with _pull_lock:
+        if _pull_state.get("active"):
+            return {"ok": False, "error": "Ein Download läuft bereits"}
+        _pull_state = {"active": True, "model": name, "status": "starte",
+                       "done": 0, "total": 0, "error": ""}
+    threading.Thread(target=_pull_worker, args=(name,), daemon=True).start()
+    return {"ok": True, "model": name}
+
+
+def _pull_worker(name: str):
+    global _pull_state
+    try:
+        url = f"{_endpoint()}/api/pull"
+        body = json.dumps({"name": name, "stream": True}).encode("utf-8")
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=1800) as r:
+            for raw in r:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                st = ev.get("status", "")
+                with _pull_lock:
+                    _pull_state["status"] = st
+                    if "total" in ev and "completed" in ev:
+                        _pull_state["total"] = int(ev.get("total", 0) or 0)
+                        _pull_state["done"] = int(ev.get("completed", 0) or 0)
+                if st == "success":
+                    with _pull_lock:
+                        _pull_state["done"] = _pull_state["total"]
+                    break
+        with _pull_lock:
+            _pull_state["active"] = False
+            _pull_state["status"] = "fertig"
+    except Exception as e:
+        with _pull_lock:
+            _pull_state["active"] = False
+            _pull_state["status"] = "fehler"
+            _pull_state["error"] = str(e)[:160]
+
+
+def pull_status() -> dict:
+    """Aktueller Status des Modell-Downloads."""
+    with _pull_lock:
+        return dict(_pull_state)
 
 
 def is_reachable() -> bool:

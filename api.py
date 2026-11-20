@@ -711,10 +711,20 @@ def status():
 # ---------- XDCC / IRC ----------
 @app.get("/api/xdcc/networks")
 def xdcc_networks():
-    from .config import IRC_NETWORKS
+    from . import xdcc
+    nets = xdcc.get_networks()
     return {"networks": {k: {"host": v["host"], "nickserv": v.get("nickserv", False)}
-                         for k, v in IRC_NETWORKS.items()},
+                         for k, v in nets.items()},
+            "full": nets,
             "nicks": _irc_nicks()}
+
+
+@app.post("/api/xdcc/networks")
+async def xdcc_networks_save(request: Request):
+    body = await request.json()
+    from . import xdcc
+    nets = xdcc.save_networks(body.get("networks", {}))
+    return {"ok": True, "networks": nets}
 
 
 @app.get("/api/xdcc/search")
@@ -784,8 +794,8 @@ async def xdcc_download(request: Request):
     category = str(body.get("category", "movie")).strip() or "movie"
     if not (network and bot and pack):
         return {"ok": False, "error": "network/bot/pack fehlt"}
-    from .config import IRC_NETWORKS
-    if network not in IRC_NETWORKS:
+    from . import xdcc
+    if network not in xdcc.get_networks():
         return {"ok": False, "error": f"unbekanntes Netzwerk: {network}"}
 
     url = f"xdcc://{network}/{bot}/{pack}"
@@ -845,10 +855,13 @@ async def ai_pull(request: Request):
     if not model:
         return {"ok": False, "error": "kein Modellname"}
     from . import ai
-    try:
-        return ai.pull_model(model)
-    except Exception as e:
-        return {"ok": False, "error": str(e)[:140]}
+    return ai.start_pull(model)
+
+
+@app.get("/api/ai/pull_status")
+def ai_pull_status():
+    from . import ai
+    return ai.pull_status()
 
 
 @app.get("/api/vpn/status")
@@ -939,6 +952,49 @@ def get_releases(sort: str = "time", lang: str = "", quality: str = "",
         return {"ok": True, "releases": releases}
     except Exception as e:
         return {"ok": False, "error": str(e)[:120]}
+
+
+# ---------- Blog-/DDL-Quellen ----------
+@app.get("/api/ddl/sources")
+def ddl_sources_list():
+    from . import ddlblog
+    return {"sources": ddlblog.get_sources()}
+
+
+@app.post("/api/ddl/sources")
+async def ddl_sources_save(req: Request):
+    from . import ddlblog
+    body = await req.json()
+    srcs = body.get("sources") if isinstance(body, dict) else body
+    return {"ok": True, "sources": ddlblog.save_sources(srcs or [])}
+
+
+@app.get("/api/ddl/latest")
+def ddl_latest(name: str = "", limit: int = 25):
+    from . import ddlblog
+    return ddlblog.latest(name, limit)
+
+
+@app.post("/api/ddl/resolve")
+async def ddl_resolve(req: Request):
+    from . import ddlblog
+    body = await req.json()
+    url = (body.get("url") or "").strip()
+    if not url:
+        return {"ok": False, "error": "url fehlt"}
+    return ddlblog.resolve(url, source_name=body.get("source") or "")
+
+
+@app.post("/api/ddl/grab")
+async def ddl_grab(req: Request):
+    from . import ddlblog
+    body = await req.json()
+    url = (body.get("url") or "").strip()
+    if not url:
+        return {"ok": False, "error": "url fehlt"}
+    return ddlblog.grab(url, quality=body.get("quality") or "",
+                        category=body.get("category") or "music",
+                        source_name=body.get("source") or "")
 
 
 # ---------- Web-GUI ----------

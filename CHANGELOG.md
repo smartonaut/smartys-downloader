@@ -2,6 +2,39 @@
 
 Quelle: Versionslog im Forum (https://forum.smartys.tech/d/3) · Pakete: https://downloader.smartys.tech
 
+## v0.4.0 — 21.11.2026
+
+Schwerpunkt: XDCC-Transfers überleben Abbrüche, und Quellen bleiben Nutzerdaten.
+
+- **DCC-Resume** — bricht ein XDCC-Transfer mitten in einer 8-GB-Datei ab, wird
+  er ab der vorhandenen Byte-Position fortgesetzt statt neu zu laden. Aushandlung
+  über `DCC RESUME`/`DCC ACCEPT` mit dem Bot; ohne `ACCEPT` wird die Teildatei
+  bewusst verworfen, damit keine lückenhaft zusammengesetzte Datei entsteht.
+  Empfang schickt den Offset als ersten 4-Byte-Ack und schreibt ab `seek(offset)`.
+- **Verwaiste Downloads** — Zeilen, die beim Beenden/Crash auf `downloading`
+  stehen blieben, werden beim Start wieder in die Queue gelegt (vorher liefen sie
+  nie wieder an, obwohl die Teildatei noch da war).
+- **Blog-/DDL-Quellen (neu: `ddlblog.py`)** — quellen-neutral: Feeds und Seiten
+  sind ausschließlich Nutzerdaten (Setting `ddl_sources`), im Code steht keine
+  Quelle. Discovery über RSS, Post-Auflösung inkl. `do=go`-Redirect-Dekodierung,
+  Cloudflare-Fallback über FlareSolverr, dann Übergabe an die Queue. Neue API:
+  `/api/ddl/sources`, `/api/ddl/latest`, `/api/ddl/resolve`, `/api/ddl/grab`.
+- **Kategorie-Normalisierung** — Paket-Kategorien aus der Oberfläche ("Filme",
+  "Serien", "Musik") werden auf die internen Schlüssel (`movie`, `series`, …)
+  abgebildet. Vorher fand ein "Filme"-Paket kein Ziel: das Postprocessing
+  kopierte nichts und markierte das Paket trotzdem als fertig.
+- **Postprocessing-Ergebnis bleibt sichtbar** — `postprocessed`/`processing`/`error`
+  werden nicht mehr von `done` überschrieben, und ein gesetztes Ziel ohne
+  passende Datei ist jetzt ein Fehler statt eines stillen "fertig".
+- **Musik/Hörbuch** — Alben behalten ALLE Dateien (die Filmlogik "größte Datei
+  gewinnt" reduzierte einen Sampler auf einen Track) und landen unter
+  `<ziel>/<paketname>/`.
+- **IRC-Netze als Nutzerdaten** — Netze, Channels und Nicks kommen aus den
+  Einstellungen (`irc_networks`, `irc_nicks`); im Code ist keine Voreinstellung
+  mehr hinterlegt. Netze lassen sich über `POST /api/xdcc/networks` speichern.
+- **KI-Modell-Download** — `start_pull`/`pull_status` mit Fortschritt statt
+  blockierendem Pull (`/api/ai/pull` liefert sofort, Status über `/api/ai/pull_status`).
+
 ## v0.3.1 — 20.10.2026
 
 Bugfixes nach einem Code-Audit der Download-Engine:
