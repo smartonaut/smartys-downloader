@@ -27,8 +27,8 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/opt/smartys-downloader
 mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/applications
-cp -r %{?srcroot:.}/dist/SmartDownloader/. %{buildroot}/opt/smartys-downloader/
-cp -r %{?srcroot:.}/extension %{buildroot}/opt/smartys-downloader/extension
+cp -r %{?srcroot}%{!?srcroot:.}/dist/SmartDownloader/. %{buildroot}/opt/smartys-downloader/
+cp -r %{?srcroot}%{!?srcroot:.}/extension %{buildroot}/opt/smartys-downloader/extension
 
 cat > %{buildroot}/usr/bin/smartys-downloader <<'LAUNCHER'
 #!/bin/bash

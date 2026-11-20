@@ -1,5 +1,5 @@
 Package: smartys-downloader
-Version: 0.3.1
+Version: 0.4.1
 Section: net
 Priority: optional
 Architecture: amd64
