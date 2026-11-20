@@ -132,7 +132,7 @@ smartdownloader/
 │   ├── base.py           # ResolverPlugin / HosterPlugin Basisklassen
 │   ├── xfs_base.py       # XFileSharingProBasic-Pendant (ein Plugin, viele Hoster)
 │   ├── hoster/           # ddownload.py, rapidgator.py, turbobit.py, ...
-│   └── resolver/         # filecrypt.py, seriesforum.example.py, url-shortener.py
+# resolver/         # filecrypt.py, container.py, url-shortener.py
 ├── debrid/
 │   └── debridlink.py     # API v2 — PRIMÄRER Resolver (345 Hoster!)
 ├── api/

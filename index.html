@@ -228,7 +228,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
   </div>
   <div class="view" id="view-releases">
     <h1 class="page">Release-Info</h1>
-    <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen (releaseinfo.example, releasenews.example …).</div>
+    <div class="page-sub">Welche Releases gerade online sind — aus deinen Info-Quellen.</div>
     <div id="rel-cats" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div class="addbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button onclick="loadReleases()">🔄 Aktualisieren</button>
@@ -351,8 +351,8 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
       <div id="search-engines"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <input id="se-name" placeholder="Name" style="width:120px">
-        <input id="se-url" placeholder="URL (z. B. https://xdccindex-a.example.com)" style="flex:1">
-        <select id="se-type" style="width:110px"><option value="xdccindex-a.example">xdccindex-a.example</option><option value="huginn">huginn</option><option value="custom">custom</option></select>
+        <input id="se-url" placeholder="URL (https://…)" style="flex:1">
+        <select id="se-type" style="width:130px"><option value="json_arrays">json_arrays</option><option value="huginn">huginn</option><option value="custom">custom</option></select>
         <button class="small" onclick="addSearchEngine()">Hinzufügen</button>
       </div>
     </div>
@@ -371,7 +371,7 @@ button.nav-btn.logout:hover { background: var(--card); color: #ff6b6b; border-co
     </div>
     <div class="set-card">
       <h3>📰 Info-Quellen</h3>
-      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">Release-Info-Quellen (releaseinfo.example, releasenews.example …) — anzeigen, welche Releases online sind.</div>
+      <div style="font-size:12px;color:var(--muted2);margin:0 0 8px">Release-Info-Quellen — anzeigen, welche Releases online sind.</div>
       <div id="info-sources"></div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <input id="is-name" placeholder="Name" style="width:110px">

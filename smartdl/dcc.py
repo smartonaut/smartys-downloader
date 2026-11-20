@@ -32,6 +32,64 @@ def _ack(sock: socket.socket, n: int):
     sock.sendall((n & 0xFFFFFFFF).to_bytes(4, "big"))
 
 
+def parse_dcc_accept(line: str) -> dict | None:
+    """\\x01DCC ACCEPT <filename> <port> <position>\\x01 aus einer IRC-Zeile."""
+    if "\x01DCC ACCEPT " not in line:
+        return None
+    msg = line.split(" :", 1)[1] if " :" in line else line
+    msg = msg.strip().strip("\x01").strip()
+    import shlex
+    try:
+        parts = shlex.split(msg)
+    except ValueError:
+        return None
+    if len(parts) < 5 or parts[0].upper() != "DCC" or parts[1].upper() != "ACCEPT":
+        return None
+    try:
+        return {"filename": parts[2], "port": int(parts[3]), "position": int(parts[4])}
+    except (ValueError, IndexError):
+        return None
+
+
+def _quote(name: str) -> str:
+    """DCC-Namen mit Leerzeichen müssen in Anführungszeichen stehen."""
+    return f'"{name}"' if " " in name else name
+
+
+def request_resume(client, bot: str, filename: str, port: int, position: int,
+                   timeout: float = 20.0) -> bool:
+    """DCC-RESUME aushandeln: RESUME senden, auf ACCEPT des Bots warten.
+
+    Ablauf (DCC-Protokoll):
+        → \\x01DCC RESUME <datei> <port> <position>\\x01
+        ← \\x01DCC ACCEPT <datei> <port> <position>\\x01
+    Danach verbindet sich der Empfänger wie gewohnt zum Bot und schickt den
+    Offset als ersten Ack — der Bot liefert ab dieser Position weiter.
+
+    Liefert True, wenn der Bot den Offset bestätigt hat. Ohne ACCEPT darf
+    NICHT mit Offset empfangen werden (der Bot würde ab 0 senden und die
+    bereits geladenen Bytes im Ziel überschreiben).
+    """
+    import socket as _socket
+    try:
+        client.privmsg(bot, f"\x01DCC RESUME {_quote(filename)} {port} {position}\x01")
+    except Exception:
+        return False
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        client.sock.settimeout(max(1.0, deadline - time.time()))
+        try:
+            line = client.read_line()
+        except (TimeoutError, _socket.timeout):
+            continue
+        except Exception:
+            return False
+        acc = parse_dcc_accept(line)
+        if acc and acc["position"] == position:
+            return True
+    return False
+
+
 def parse_dcc_send(line: str) -> dict | None:
     """DCC-SEND-CTCP aus einer IRC-Zeile extrahieren.
 

@@ -5,6 +5,7 @@ Pipeline pro Download:
       → downloading (chunked, resume) → done | error(retry) 
 """
 import re
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -58,6 +59,19 @@ class QueueEngine:
 
     # ---------- Lifecycle ----------
     def start(self, n_workers: int | None = None):
+        # Verwaiste 'downloading'-Zeilen aus einem früheren Prozess einsammeln.
+        # Sonst bleiben sie nach einem Neustart/Crash für immer liegen: die
+        # Worker claimen nur 'queued'. Die Teildatei bleibt erhalten und wird
+        # beim Anlauf per DCC-RESUME fortgesetzt.
+        try:
+            stale = store.rows("SELECT id FROM downloads WHERE status='downloading'")
+            for row in stale:
+                store.update_download(row["id"], status="queued", speed=0, eta=0)
+            if stale:
+                print(f"[engine] {len(stale)} verwaiste Downloads wieder in die Queue",
+                      flush=True)
+        except Exception as e:
+            print(f"[engine] stale-reset fehlgeschlagen: {e}", flush=True)
         n = n_workers or config.MAX_PARALLEL
         for i in range(n):
             t = threading.Thread(target=self._worker_loop, name=f"smartdl-w{i}", daemon=True)
@@ -233,6 +247,9 @@ class QueueEngine:
         with self._lock:
             self._active.pop(did, None)
         if result.get("ok"):
+            if result.get("resumed_at"):
+                print(f"[xdcc] RESUME bei {result['resumed_at']} B — "
+                      f"{result.get('filename')}", flush=True)
             store.update_download(did, status="done",
                                   filename=result.get("filename") or name,
                                   size=result.get("size") or d.get("size") or 0,
@@ -312,6 +329,13 @@ class QueueEngine:
                        "SUM(CASE WHEN status IN ('done') THEN 1 ELSE 0 END) as done "
                        "FROM downloads WHERE package_id=?", (pid,))
         if r and r[0]["n"] and r[0]["n"] == r[0]["done"]:
+            # 'postprocessed'/'processing'/'error' NICHT überschreiben: sonst
+            # verschwindet das Ergebnis des Postprocessings (und ein Fehler
+            # wäre unsichtbar) — der Zustand sieht dann aus wie „nur fertig".
+            pkg = store.rows("SELECT status FROM packages WHERE id=?", (pid,))
+            cur = (pkg[0]["status"] if pkg else "") or ""
+            if cur in ("postprocessed", "processing", "error"):
+                return
             store.update_package(pid, status="done")
 
     def _maybe_postprocess_package(self, pid: int):
@@ -340,7 +364,8 @@ class QueueEngine:
             if pkg and pkg[0]:
                 row = pkg[0]
                 try:
-                    category = (row["category"] if "category" in dict(row) else None) or "movie"
+                    category = normalize_category(
+                        (row["category"] if "category" in dict(row) else None) or "movie")
                 except Exception:
                     category = "movie"
 
@@ -369,6 +394,11 @@ class QueueEngine:
                     best_direct = max(direct, key=lambda f: f.stat().st_size)
                     if not to_target(best_direct, target):
                         raise RuntimeError(f"ziel-kopie fehlgeschlagen: {best_direct.name}")
+                elif target and not direct:
+                    # Ziel gesetzt, aber keine passende Datei gefunden: laut
+                    # scheitern, nicht stillschweigend als fertig abhaken.
+                    raise RuntimeError(
+                        f"keine passende datei ({category}) im download-ordner: {names}")
                 store.update_package(pid, status="postprocessed")
                 return
 
@@ -384,10 +414,36 @@ class QueueEngine:
                      if f.is_file() and f.suffix.lower() in wanted_exts]
             if not found:
                 raise RuntimeError(f"keine datei für kategorie '{category}' im archiv")
-            best = max(found, key=lambda f: f.stat().st_size)
 
-            if not to_target(best, target):
-                raise RuntimeError(f"ziel-kopie fehlgeschlagen: {best.name}")
+            if category in ("music", "audiobook"):
+                # Album/Hörbuch: ALLE Dateien behalten. Filmlogik (größte Datei
+                # gewinnt, Rest löschen) würde einen Sampler auf einen Track
+                # reduzieren.
+                pkg_name = ""
+                if pkg and pkg[0]:
+                    pkg_name = (dict(pkg[0]).get("name") or "")
+                pkg_name = re.sub(r"[^\w\-.()\[\] äöüÄÖÜß]+", "_", pkg_name).strip(" _")
+                if not pkg_name:
+                    pkg_name = f"{category}_{pid}"
+                dest_dir = (Path(target) / pkg_name) if target else (dl_dir / category.capitalize() / pkg_name)
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                for f in found:
+                    rel = f.relative_to(extract_dir)
+                    out_path = dest_dir / rel
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(f), str(out_path))
+            else:
+                best = max(found, key=lambda f: f.stat().st_size)
+
+                if target:
+                    if not to_target(best, target):
+                        raise RuntimeError(f"ziel-kopie fehlgeschlagen: {best.name}")
+                else:
+                    # Kein Ziel konfiguriert: die Nutzdatei lokal retten. Sonst
+                    # räumt cleanup() sie mit dem Archiv weg.
+                    keep = dl_dir / category.capitalize()
+                    keep.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(best), str(keep / best.name))
 
             cleanup([dl_dir / n for n in archives if (dl_dir / n).exists()])
             cleanup([extract_dir])
@@ -399,6 +455,31 @@ class QueueEngine:
 def get_hoster_safe(url: str) -> str:
     from .urls import get_hoster
     return get_hoster(url) or "?"
+
+
+# Die Paket-Kategorie kommt aus der GUI/Panel (deutsch: "Filme", "Serien", …),
+# die Ziel-Zuordnung (category_targets) und die Endungs-Listen nutzen aber die
+# internen Schlüssel (movie, series, …). Ohne diese Normalisierung findet ein
+# "Filme"-Paket kein Ziel und wird still als "postprocessed" abgehakt, ohne
+# dass je eine Datei kopiert wurde.
+CATEGORY_ALIASES = {
+    "film": "movie", "filme": "movie", "movie": "movie", "movies": "movie", "video": "movie",
+    "serie": "series", "serien": "series", "series": "series", "tv": "series",
+    "musik": "music", "music": "music", "audio": "music",
+    "hörbuch": "audiobook", "hörbücher": "audiobook", "hoerbuch": "audiobook",
+    "hoerbuecher": "audiobook", "audiobook": "audiobook", "audiobooks": "audiobook",
+    "software": "software", "spiele": "software", "games": "software", "game": "software",
+    "kinder": "kids", "kids": "kids", "kind": "kids",
+    "sonstiges": "other", "other": "other", "misc": "other",
+}
+
+
+def normalize_category(raw: str | None) -> str:
+    """Kategorie auf einen internen Schlüssel abbilden (Filme → movie)."""
+    key = (raw or "").strip().lower()
+    if not key:
+        return "movie"
+    return CATEGORY_ALIASES.get(key, key)
 
 
 def _eta(done, total, speed):

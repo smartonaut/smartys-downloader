@@ -411,12 +411,6 @@ def reconnect_status():
     return {"configured": reconnect.is_configured()}
 
 
-@app.get("/api/reconnect/discover")
-def reconnect_discover():
-    """Fritz!Box automatisch finden (fritz.box → SSDP)."""
-    return reconnect.discover_fritz()
-
-
 @app.get("/api/torrent")
 def torrent_status():
     """Torrent-Status + ob aria2 verfügbar ist."""
@@ -725,6 +719,20 @@ def xdcc_networks():
             "nicks": _irc_nicks()}
 
 
+@app.get("/api/xdcc/presets")
+def xdcc_presets():
+    """Katalog öffentlicher IRC-Netzwerke (Vorschläge, keine Nutzerdaten)."""
+    from . import xdcc
+    return {"presets": xdcc.presets()}
+
+
+@app.post("/api/xdcc/presets/{name}")
+def xdcc_preset_add(name: str):
+    """Preset in die eigenen Netzwerk-Einstellungen übernehmen."""
+    from . import xdcc
+    return xdcc.add_preset(name)
+
+
 @app.post("/api/xdcc/networks")
 async def xdcc_networks_save(request: Request):
     body = await request.json()
@@ -958,6 +966,49 @@ def get_releases(sort: str = "time", lang: str = "", quality: str = "",
         return {"ok": True, "releases": releases}
     except Exception as e:
         return {"ok": False, "error": str(e)[:120]}
+
+
+# ---------- Blog-/DDL-Quellen ----------
+@app.get("/api/ddl/sources")
+def ddl_sources_list():
+    from . import ddlblog
+    return {"sources": ddlblog.get_sources()}
+
+
+@app.post("/api/ddl/sources")
+async def ddl_sources_save(req: Request):
+    from . import ddlblog
+    body = await req.json()
+    srcs = body.get("sources") if isinstance(body, dict) else body
+    return {"ok": True, "sources": ddlblog.save_sources(srcs or [])}
+
+
+@app.get("/api/ddl/latest")
+def ddl_latest(name: str = "", limit: int = 25):
+    from . import ddlblog
+    return ddlblog.latest(name, limit)
+
+
+@app.post("/api/ddl/resolve")
+async def ddl_resolve(req: Request):
+    from . import ddlblog
+    body = await req.json()
+    url = (body.get("url") or "").strip()
+    if not url:
+        return {"ok": False, "error": "url fehlt"}
+    return ddlblog.resolve(url, source_name=body.get("source") or "")
+
+
+@app.post("/api/ddl/grab")
+async def ddl_grab(req: Request):
+    from . import ddlblog
+    body = await req.json()
+    url = (body.get("url") or "").strip()
+    if not url:
+        return {"ok": False, "error": "url fehlt"}
+    return ddlblog.grab(url, quality=body.get("quality") or "",
+                        category=body.get("category") or "music",
+                        source_name=body.get("source") or "")
 
 
 # ---------- Web-GUI ----------

@@ -8,10 +8,11 @@ Debrid/HTTP) — danach übernimmt der bestehende Postprocess-Pfad.
 """
 import json
 import time
+from pathlib import Path
 
 from . import config, keystore, store
 from .irc import IRCClient, IRCError
-from .dcc import receive, parse_dcc_send, DCCError
+from .dcc import receive, parse_dcc_send, request_resume, DCCError
 
 
 def get_networks() -> dict:
@@ -53,8 +54,33 @@ def save_networks(nets: dict) -> dict:
     return clean
 
 
+def presets() -> list[dict]:
+    """Öffentliche IRC-Netzwerke als Auswahl-Liste (nur Vorschläge)."""
+    from . import networks
+    return networks.list_presets()
+
+
+def add_preset(name: str) -> dict:
+    """Ein Preset in die Einstellungen übernehmen — idempotent.
+
+    Es wird nur das Netz angelegt (Host, Port, TLS, NickServ-Flag). Channels
+    bleiben leer: die gehören zur Quelle und kommen aus dem Suchergebnis oder
+    aus der eigenen Konfiguration.
+    """
+    from . import networks
+    nets = get_networks()
+    if name in nets:
+        return {"ok": True, "already": True, "networks": nets}
+    net = networks.as_network(name)
+    if not net:
+        return {"ok": False, "error": f"unbekanntes Netzwerk-Preset: {name}"}
+    nets[name] = net
+    save_networks(nets)
+    return {"ok": True, "already": False, "networks": nets}
+
+
 def parse_xdcc_url(url: str) -> tuple[str, str, str, str]:
-    """xdcc://Network/Bot/42[?ch=#channel] → (network, bot, pack, channel)."""
+    """xdcc://Network/Bot/42[?ch=<channel>] → (network, bot, pack, channel)."""
     rest = url[len("xdcc://"):]
     base, _, qs = rest.partition("?")
     parts = base.split("/")
@@ -144,8 +170,8 @@ def fetch(network: str, bot: str, pack: str, dest: str,
 
     # EINDEUTIGER Nick pro Download: parallele Downloads kollidieren sonst
     # auf demselben Nick („433 nickname in use") und der zweite hängt im
-    # register()-Timeout. BEAST-X-Bots servieren auch unregistrierte Nicks
-    # (verifiziert) — der Random-Suffix ist also unkritisch.
+    # register()-Timeout. Viele Bots servieren auch unregistrierte Nicks —
+    # der Random-Suffix ist also unkritisch.
     import random
     nick = f"{base_nick}{random.randint(1000, 9999)}"
 
@@ -177,10 +203,30 @@ def fetch(network: str, bot: str, pack: str, dest: str,
         got_name = offer["filename"] or filename
         got_size = offer["size"] or size
 
+        # ---- Resume: vorhandene Teildatei fortsetzen ----
+        # Ohne RESUME/ACCEPT-Handshake würde der Bot ab Byte 0 senden und die
+        # bereits geladenen Bytes überschreiben (Datei danach korrupt).
+        offset = 0
+        part = Path(dest)
+        if part.exists():
+            have = part.stat().st_size
+            if have and got_size and have >= got_size:
+                return {"ok": True, "filename": got_name, "size": have, "resumed_at": have}
+            if have and got_size and have < got_size:
+                if request_resume(client, bot, got_name, offer["port"], have):
+                    offset = have
+                    print(f"[dcc] RESUME akzeptiert: {got_name} ab {have} B", flush=True)
+                else:
+                    print(f"[dcc] RESUME abgelehnt: {got_name} — Neustart bei 0", flush=True)
+                    # Bot kann/will nicht fortsetzen → Teildatei verwerfen,
+                    # sonst entsteht eine lückenhaft zusammengesetzte Datei.
+                    part.unlink(missing_ok=True)
+
         received = receive(
             offer["ip"], offer["port"], got_size, dest,
-            offset=0, progress_cb=progress_cb, stop_event=stop_event,
+            offset=offset, progress_cb=progress_cb, stop_event=stop_event,
         )
-        return {"ok": True, "filename": got_name, "size": received}
+        return {"ok": True, "filename": got_name, "size": received,
+                "resumed_at": offset}
     finally:
         client.close()

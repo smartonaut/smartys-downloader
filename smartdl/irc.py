@@ -15,8 +15,8 @@ class IRCError(Exception):
 
 class IRCClient:
     def __init__(self, host: str, port: int = 6697, use_ssl: bool = True,
-                 nick: str = "OdinDL", user: str = "odin",
-                 realname: str = "Odin Downloader"):
+                 nick: str = "xdccuser", user: str = "xdccuser",
+                 realname: str = "XDCC Client"):
         self.host = host
         self.port = port
         self.use_ssl = use_ssl
